@@ -134,6 +134,44 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existing) {
+      // Check if agent needs to move to a different org's department
+      const { data: currentDept } = await supabase
+        .from("departments")
+        .select("org_id")
+        .eq("id", existing.dept_id)
+        .single();
+
+      let newDeptId = existing.dept_id;
+      if (currentDept && currentDept.org_id !== orgId) {
+        // Agent's current department belongs to a different org — reassign
+        const { data: targetDepts } = await supabase
+          .from("departments")
+          .select("id")
+          .eq("org_id", orgId)
+          .limit(1);
+
+        if (targetDepts?.length) {
+          newDeptId = targetDepts[0].id;
+        } else {
+          // Create default department in target org
+          newDeptId = `dept-${Date.now()}`;
+          await supabase.from("departments").insert({
+            id: newDeptId,
+            org_id: orgId,
+            name: departmentName || "Engineering",
+            description: "",
+            budget: 0,
+            monthly_spend: 0,
+            primary_vendor: vendor,
+            layout_x: 50,
+            layout_y: 50,
+            layout_w: 300,
+            layout_h: 240,
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+
       // Update agent fields
       const { error: updateError } = await supabase
         .from("agents")
@@ -141,6 +179,7 @@ export async function POST(request: NextRequest) {
           name: agentName,
           vendor,
           model,
+          dept_id: newDeptId,
           description: description || `Pushed via CLI at ${new Date().toISOString()}`,
           last_active: new Date().toISOString(),
         })
