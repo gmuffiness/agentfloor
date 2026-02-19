@@ -64,7 +64,10 @@ export function detectSkills(projectRoot) {
 }
 
 /**
- * Detect MCP servers from .claude/settings.local.json and .claude/settings.json
+ * Detect MCP servers from multiple config locations:
+ *  1. .claude/settings.local.json (project-local)
+ *  2. .claude/settings.json (project-local)
+ *  3. ~/.claude.json (global, project-scoped settings)
  * @param {string} [projectRoot]
  * @returns {string[]}
  */
@@ -72,6 +75,7 @@ export function detectMcpServers(projectRoot) {
   const root = projectRoot || findProjectRoot();
   const servers = new Set();
 
+  // 1. Project-local settings
   for (const filename of ["settings.local.json", "settings.json"]) {
     const settingsPath = path.join(root, ".claude", filename);
     try {
@@ -85,6 +89,26 @@ export function detectMcpServers(projectRoot) {
     } catch {
       // file not found or invalid JSON
     }
+  }
+
+  // 2. Global ~/.claude.json — project-scoped MCP settings
+  const resolvedRoot = fs.realpathSync(root);
+  const globalConfigPath = path.join(process.env.HOME || "", ".claude.json");
+  try {
+    const raw = fs.readFileSync(globalConfigPath, "utf-8");
+    const config = JSON.parse(raw);
+    if (config.projects && typeof config.projects === "object") {
+      const projectSettings = config.projects[resolvedRoot];
+      if (projectSettings?.mcpServers && typeof projectSettings.mcpServers === "object") {
+        for (const name of Object.keys(projectSettings.mcpServers)) {
+          if (Object.keys(projectSettings.mcpServers[name]).length > 0) {
+            servers.add(name);
+          }
+        }
+      }
+    }
+  } catch {
+    // file not found or invalid JSON
   }
 
   return [...servers];
