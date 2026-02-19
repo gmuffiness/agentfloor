@@ -7,6 +7,81 @@ import { StatusBadge, VendorBadge } from "@/components/ui/Badge";
 import UsageBarChart from "@/components/charts/UsageBarChart";
 import type { Agent, AgentContext } from "@/types";
 
+function GitHubIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
+/** Convert git SSH URL (git@host:org/repo.git) to HTTPS URL */
+function toHttpsUrl(url: string): string {
+  // Match git SSH patterns: git@github.com:org/repo.git or git@custom-host:org/repo.git
+  const sshMatch = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+  if (sshMatch) {
+    // Extract the actual github hostname (strip custom SSH alias prefix)
+    // e.g., "github-cosmax" -> "github.com", "github.com" -> "github.com"
+    const host = sshMatch[1].startsWith("github") ? "github.com" : sshMatch[1];
+    return `https://${host}/${sshMatch[2]}`;
+  }
+  return url;
+}
+
+function isGitHubUrl(url: string): boolean {
+  return /github/.test(url);
+}
+
+/** Sprite sheet constants — must match AgentAvatar.ts */
+const SPRITE_SIZE = 32;
+const CHARS_PER_ROW = 4;
+const FRAMES_PER_CHAR = 3;
+const TOTAL_ROWS = 21;
+const CHARACTER_POOL = Array.from({ length: TOTAL_ROWS - 1 }, (_, i) => (i + 1) * CHARS_PER_ROW);
+
+function nameHash(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/** Renders the same sprite-sheet character as the spatial map canvas */
+function AgentSpriteAvatar({ name, size = 40 }: { name: string; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const img = new Image();
+    img.src = "/assets/characters.png";
+    img.onload = () => {
+      const hash = nameHash(name);
+      const charIndex = CHARACTER_POOL[hash % CHARACTER_POOL.length];
+      const charCol = charIndex % CHARS_PER_ROW;
+      const charRow = Math.floor(charIndex / CHARS_PER_ROW);
+      const srcX = charCol * FRAMES_PER_CHAR * SPRITE_SIZE; // frame 0
+      const srcY = charRow * SPRITE_SIZE;
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, srcX, srcY, SPRITE_SIZE, SPRITE_SIZE, 0, 0, canvas.width, canvas.height);
+    };
+  }, [name]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={size}
+      height={size}
+      className="rounded-xl"
+      style={{ width: size, height: size, imageRendering: "pixelated" }}
+    />
+  );
+}
+
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
@@ -205,10 +280,10 @@ export function AgentDrawer() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div
-                    className="flex h-10 w-10 items-center justify-center rounded-xl text-white text-sm font-bold"
-                    style={{ backgroundColor: getVendorColor(agent.vendor) }}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border-2"
+                    style={{ borderColor: getVendorColor(agent.vendor), backgroundColor: "#f8fafc" }}
                   >
-                    {agent.vendor === "anthropic" ? "C" : agent.vendor === "openai" ? "G" : "Ge"}
+                    <AgentSpriteAvatar name={agent.name} size={36} />
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">
@@ -401,17 +476,19 @@ export function AgentDrawer() {
                             storage: { bg: "bg-teal-50", border: "border-teal-100", text: "text-teal-700" },
                           };
                           const colors = colorMap[resource.type];
+                          const href = resource.url ? toHttpsUrl(resource.url) : "";
+                          const isGh = resource.url ? isGitHubUrl(resource.url) : false;
                           const chip = (
                             <div
                               className={cn("flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs", colors.bg, colors.border)}
                             >
-                              <span className="text-sm">{resource.icon}</span>
+                              {isGh ? <GitHubIcon className="w-3.5 h-3.5 text-slate-700" /> : <span className="text-sm">{resource.icon}</span>}
                               <span className={cn("font-medium", colors.text)}>{resource.name}</span>
                             </div>
                           );
-                          if (resource.url) {
+                          if (href) {
                             return (
-                              <a key={resource.id} href={resource.url} target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
+                              <a key={resource.id} href={href} target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
                                 {chip}
                               </a>
                             );
@@ -519,7 +596,11 @@ export function AgentDrawer() {
                           };
                           return (
                             <div key={resource.id} className={cn("flex items-start gap-3 rounded-xl p-3 border", colors.bg, colors.border)}>
-                              <span className="text-lg mt-0.5">{resource.icon}</span>
+                              {isGitHubUrl(resource.url) ? (
+                                <GitHubIcon className="w-5 h-5 text-slate-700 mt-0.5 shrink-0" />
+                              ) : (
+                                <span className="text-lg mt-0.5">{resource.icon}</span>
+                              )}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-semibold text-slate-900">{resource.name}</span>
@@ -533,11 +614,11 @@ export function AgentDrawer() {
                                 <p className="text-xs text-slate-500 mt-0.5">{resource.description}</p>
                                 {resource.url && (
                                   <a
-                                    href={resource.url}
+                                    href={toHttpsUrl(resource.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="block text-[10px] text-blue-400 hover:text-blue-600 mt-1 font-mono truncate underline"
-                                  >{resource.url}</a>
+                                    className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-600 mt-1 font-mono truncate underline"
+                                  >{toHttpsUrl(resource.url)}</a>
                                 )}
                               </div>
                             </div>
