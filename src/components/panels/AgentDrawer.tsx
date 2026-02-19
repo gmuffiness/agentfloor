@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "@/stores/app-store";
 import { formatCurrency, getVendorColor, cn } from "@/lib/utils";
 import { StatusBadge, VendorBadge } from "@/components/ui/Badge";
@@ -25,7 +25,12 @@ function timeAgo(dateStr: string): string {
 
 type Tab = "overview" | "tools" | "context" | "usage";
 
-type PushRequestState = "idle" | "loading" | "sent" | "error";
+type PushServerStatus = "none" | "pending" | "completed";
+
+interface PushStatusData {
+  status: PushServerStatus;
+  announcement?: { id: string; createdAt: string; ackedAt?: string };
+}
 
 export function AgentDrawer() {
   const getSelectedAgent = useAppStore((s) => s.getSelectedAgent);
@@ -35,28 +40,83 @@ export function AgentDrawer() {
   const organization = useAppStore((s) => s.organization);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [fetchedAgent, setFetchedAgent] = useState<Agent | null>(null);
-  const [pushRequestState, setPushRequestState] = useState<PushRequestState>("idle");
+  const [pushStatus, setPushStatus] = useState<PushStatusData>({ status: "none" });
+  const [pushSending, setPushSending] = useState(false);
+  const [pushError, setPushError] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Reset push request state when agent changes
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  const fetchPushStatus = useCallback(async (orgId: string, agentId: string): Promise<PushStatusData | null> => {
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/agents/${agentId}/push-request`);
+      if (!res.ok) return null;
+      return await res.json() as PushStatusData;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Fetch push status when agent is selected
   useEffect(() => {
-    setPushRequestState("idle");
-  }, [selectedAgentId]);
+    setPushStatus({ status: "none" });
+    setPushSending(false);
+    setPushError(false);
+    stopPolling();
+
+    if (!selectedAgentId || !currentOrgId) return;
+
+    let cancelled = false;
+    fetchPushStatus(currentOrgId, selectedAgentId).then((data) => {
+      if (cancelled || !data) return;
+      setPushStatus(data);
+      // Start polling if pending
+      if (data.status === "pending") {
+        startPolling(currentOrgId, selectedAgentId);
+      }
+    });
+
+    return () => { cancelled = true; stopPolling(); };
+  }, [selectedAgentId, currentOrgId, fetchPushStatus, stopPolling]);
+
+  function startPolling(orgId: string, agentId: string) {
+    stopPolling();
+    let elapsed = 0;
+    pollingRef.current = setInterval(async () => {
+      elapsed += 5000;
+      if (elapsed > 60000) { stopPolling(); return; }
+      const data = await fetchPushStatus(orgId, agentId);
+      if (!data) return;
+      setPushStatus(data);
+      if (data.status === "completed") stopPolling();
+    }, 5000);
+  }
 
   async function handlePushRequest() {
     if (!currentOrgId || !selectedAgentId) return;
-    setPushRequestState("loading");
+    setPushSending(true);
+    setPushError(false);
     try {
       const res = await fetch(
         `/api/organizations/${currentOrgId}/agents/${selectedAgentId}/push-request`,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) },
       );
       if (res.ok) {
-        setPushRequestState("sent");
+        setPushSending(false);
+        setPushStatus({ status: "pending" });
+        startPolling(currentOrgId, selectedAgentId);
       } else {
-        setPushRequestState("error");
+        setPushSending(false);
+        setPushError(true);
       }
     } catch {
-      setPushRequestState("error");
+      setPushSending(false);
+      setPushError(true);
     }
   }
 
@@ -165,19 +225,25 @@ export function AgentDrawer() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
-                    onClick={handlePushRequest}
-                    disabled={pushRequestState === "loading" || pushRequestState === "sent"}
-                    title="Request agent to run agentfloor push"
+                    onClick={pushStatus.status === "completed" ? () => { setPushStatus({ status: "none" }); } : handlePushRequest}
+                    disabled={pushSending || pushStatus.status === "pending"}
+                    title={
+                      pushStatus.status === "completed"
+                        ? `Push completed ${pushStatus.announcement?.ackedAt ? timeAgo(pushStatus.announcement.ackedAt) : ""}`
+                        : "Request agent to run agentfloor push"
+                    }
                     className={cn(
                       "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
-                      pushRequestState === "sent"
-                        ? "bg-green-50 text-green-600 border border-green-100"
-                        : pushRequestState === "error"
-                          ? "bg-red-50 text-red-500 border border-red-100 hover:bg-red-100"
-                          : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                      pushStatus.status === "completed"
+                        ? "bg-green-50 text-green-600 border border-green-100 hover:bg-green-100"
+                        : pushStatus.status === "pending"
+                          ? "bg-amber-50 text-amber-600 border border-amber-100"
+                          : pushError
+                            ? "bg-red-50 text-red-500 border border-red-100 hover:bg-red-100"
+                            : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
                     )}
                   >
-                    {pushRequestState === "loading" ? (
+                    {pushSending ? (
                       <>
                         <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -185,14 +251,22 @@ export function AgentDrawer() {
                         </svg>
                         Sending...
                       </>
-                    ) : pushRequestState === "sent" ? (
+                    ) : pushStatus.status === "completed" ? (
                       <>
                         <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
                           <path d="M5 10l4 4 6-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                        Requested
+                        Push Completed
                       </>
-                    ) : pushRequestState === "error" ? (
+                    ) : pushStatus.status === "pending" ? (
+                      <>
+                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Push Pending
+                      </>
+                    ) : pushError ? (
                       "Failed"
                     ) : (
                       <>

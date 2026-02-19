@@ -1,6 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
-import { requireOrgAdmin } from "@/lib/auth";
+import { requireOrgAdmin, requireOrgMember } from "@/lib/auth";
+
+/**
+ * GET /api/organizations/[orgId]/agents/[id]/push-request
+ * Check the status of the most recent push-request for this agent.
+ * Returns: { status: "none" | "pending" | "completed", announcement?: { id, createdAt, ackedAt? } }
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ orgId: string; id: string }> },
+) {
+  const { orgId, id: agentId } = await params;
+
+  const memberCheck = await requireOrgMember(orgId);
+  if (memberCheck instanceof NextResponse) return memberCheck;
+
+  const supabase = getSupabase();
+
+  // Find the most recent [push-request] announcement targeting this agent
+  const { data: announcement } = await supabase
+    .from("announcements")
+    .select("id, created_at")
+    .eq("org_id", orgId)
+    .eq("title", "[push-request]")
+    .eq("target_type", "agent")
+    .eq("target_id", agentId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!announcement) {
+    return NextResponse.json({ status: "none" });
+  }
+
+  // Check if it's been acked
+  const { data: ack } = await supabase
+    .from("announcement_acks")
+    .select("acked_at")
+    .eq("announcement_id", announcement.id)
+    .eq("agent_id", agentId)
+    .maybeSingle();
+
+  if (ack) {
+    return NextResponse.json({
+      status: "completed",
+      announcement: { id: announcement.id, createdAt: announcement.created_at, ackedAt: ack.acked_at },
+    });
+  }
+
+  return NextResponse.json({
+    status: "pending",
+    announcement: { id: announcement.id, createdAt: announcement.created_at },
+  });
+}
 
 /**
  * POST /api/organizations/[orgId]/agents/[id]/push-request
