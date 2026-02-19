@@ -15,6 +15,8 @@ interface AgentRow {
   deptId: string;
   humanId: string | null;
   humanName: string;
+  registeredByName: string;
+  registeredByEmail: string;
   vendor: string;
   model: string;
   status: string;
@@ -149,7 +151,19 @@ export default function AgentsPage() {
       ),
     },
     { key: "departmentName", label: "Department" },
-    { key: "humanName", label: "Owner" },
+    {
+      key: "registeredByName",
+      label: "Owner",
+      render: (row: AgentRow) => {
+        const name = row.registeredByName || row.humanName;
+        if (!name) return <span className="text-slate-500">—</span>;
+        return (
+          <span title={row.registeredByEmail || undefined}>
+            {name}
+          </span>
+        );
+      },
+    },
     {
       key: "vendor",
       label: "Vendor",
@@ -235,7 +249,7 @@ export default function AgentsPage() {
         data={agents}
         onRowClick={(row) => selectAgent(row.id)}
         searchPlaceholder="Search agents..."
-        searchKeys={["name", "departmentName", "humanName", "vendor", "model", "status"]}
+        searchKeys={["name", "departmentName", "humanName", "registeredByName", "vendor", "model", "status"]}
       />
 
       {showForm && (

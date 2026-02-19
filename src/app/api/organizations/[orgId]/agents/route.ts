@@ -44,11 +44,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { data: humanRows } = await supabase.from("humans").select("id, name").eq("org_id", orgId);
   const humanMap = new Map((humanRows ?? []).map((h) => [h.id, h.name]));
 
-  const result = (rows ?? []).map((a) => ({
-    ...a,
-    departmentName: deptMap.get(a.dept_id) ?? "",
-    humanName: a.human_id ? (humanMap.get(a.human_id) ?? "") : "",
-  }));
+  // Join registered_by member name
+  const { data: memberRows } = await supabase.from("org_members").select("id, name, email").eq("org_id", orgId);
+  const memberMap = new Map((memberRows ?? []).map((m) => [m.id, m]));
+
+  const result = (rows ?? []).map((a) => {
+    const member = a.registered_by ? memberMap.get(a.registered_by) : null;
+    return {
+      ...a,
+      departmentName: deptMap.get(a.dept_id) ?? "",
+      humanName: a.human_id ? (humanMap.get(a.human_id) ?? "") : "",
+      registeredByName: member?.name ?? "",
+      registeredByEmail: member?.email ?? "",
+    };
+  });
 
   return NextResponse.json(result);
 }
