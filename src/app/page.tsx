@@ -1,204 +1,222 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { getSupabaseBrowser } from "@/db/supabase-browser";
 
-interface OrgSummary {
-  id: string;
-  name: string;
-  inviteCode: string;
-  totalBudget: number;
-  createdAt: string;
-}
+const FEATURES = [
+  {
+    icon: "🗺️",
+    title: "Spatial Map",
+    desc: "Gather.town-style canvas where departments are rooms and agents are avatars moving in real time.",
+  },
+  {
+    icon: "🔗",
+    title: "Relationship Graph",
+    desc: "Interactive node graph showing how agents, skills, MCP tools, and plugins connect across your org.",
+  },
+  {
+    icon: "🤖",
+    title: "Agent Registry",
+    desc: "Register any Claude Code agent with one command. Track vendor, model, skills, and MCP servers.",
+  },
+  {
+    icon: "💬",
+    title: "Agent Chat",
+    desc: "Talk directly to any agent through a built-in chat interface with full conversation history.",
+  },
+  {
+    icon: "📊",
+    title: "Cost Analytics",
+    desc: "Per-department and per-vendor cost breakdowns with trend charts and budget tracking.",
+  },
+  {
+    icon: "🔌",
+    title: "Plugin System",
+    desc: "One-command setup. Agents self-register and send heartbeats on every session start.",
+  },
+];
 
-export default function LandingPage() {
-  const router = useRouter();
-  const [orgs, setOrgs] = useState<OrgSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showJoin, setShowJoin] = useState(false);
-  const [createName, setCreateName] = useState("");
-  const [createBudget, setCreateBudget] = useState("");
-  const [joinCode, setJoinCode] = useState("");
-  const [joinName, setJoinName] = useState("");
-  const [error, setError] = useState("");
+const STEPS = [
+  { step: "01", title: "Create an org", desc: "Sign in and create your organization in one click." },
+  { step: "02", title: "Share the invite code", desc: "Give your team the 6-character code to join." },
+  { step: "03", title: "Register agents", desc: "Run /agentfloor:setup in Claude Code to register." },
+  { step: "04", title: "Monitor everything", desc: "See all agents on the spatial map, graph, and dashboards." },
+];
+
+export default function HomePage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetch("/api/organizations")
-      .then((res) => res.json())
-      .then((data) => {
-        setOrgs(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    getSupabaseBrowser().auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user);
+    });
   }, []);
 
-  const handleCreate = async () => {
-    if (!createName.trim()) return;
-    setError("");
-    const res = await fetch("/api/organizations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: createName.trim(), budget: Number(createBudget) || 0 }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to create organization");
-      return;
-    }
-    const { id } = await res.json();
-    router.push(`/org/${id}`);
-  };
-
-  const handleJoin = async () => {
-    if (!joinCode.trim()) return;
-    setError("");
-    const res = await fetch("/api/organizations/join", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inviteCode: joinCode.trim().toUpperCase(), name: joinName.trim() || "Anonymous" }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to join organization");
-      return;
-    }
-    const { orgId } = await res.json();
-    router.push(`/org/${orgId}`);
-  };
+  const authHref = isLoggedIn ? "/dashboard" : "/login";
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      {/* Header */}
-      <header className="flex items-center justify-center gap-3 py-12">
-        <span className="text-3xl">🏘️</span>
-        <h1 className="text-3xl font-bold">AgentFloor</h1>
-      </header>
-
-      <div className="mx-auto max-w-3xl px-6">
-        {/* Your Organizations */}
-        <section className="mb-10">
-          <h2 className="mb-4 text-lg font-semibold text-slate-300">Your Organizations</h2>
-          {loading ? (
-            <p className="text-slate-500">Loading...</p>
-          ) : orgs.length === 0 ? (
-            <p className="text-slate-500">No organizations yet. Create one or join with an invite code.</p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {orgs.map((org) => (
-                <button
-                  key={org.id}
-                  onClick={() => router.push(`/org/${org.id}`)}
-                  className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-left transition-colors hover:border-blue-500 hover:bg-slate-800"
+      {/* Nav */}
+      <nav className="fixed top-0 z-50 w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-lg">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="text-2xl">🏘️</span>
+            <span className="text-lg font-bold tracking-tight">AgentFloor</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            {isLoggedIn ? (
+              <Link
+                href="/dashboard"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-emerald-500"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-lg px-4 py-2 text-sm text-slate-300 transition-colors hover:text-white"
                 >
-                  <h3 className="text-lg font-semibold">{org.name}</h3>
-                  <div className="mt-2 flex items-center gap-3 text-sm text-slate-400">
-                    <span>Code: <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-slate-300">{org.inviteCode}</code></span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
+                  Sign in
+                </Link>
+                <Link
+                  href="/login"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-emerald-500"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </nav>
 
-        {/* Actions */}
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => { setShowCreate(true); setShowJoin(false); setError(""); }}
-            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium hover:bg-blue-500"
-          >
-            Create New Organization
-          </button>
-          <button
-            onClick={() => { setShowJoin(true); setShowCreate(false); setError(""); }}
-            className="rounded-lg border border-slate-600 px-5 py-2.5 text-sm font-medium hover:bg-slate-800"
-          >
-            Join with Invite Code
-          </button>
+      {/* Hero */}
+      <section className="relative overflow-hidden pt-16">
+        {/* Background glow */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-emerald-500/5 blur-[120px]" />
         </div>
 
-        {error && (
-          <p className="mb-4 text-sm text-red-400">{error}</p>
-        )}
-
-        {/* Create Form */}
-        {showCreate && (
-          <div className="rounded-xl border border-slate-700 bg-slate-900 p-6">
-            <h3 className="mb-4 text-lg font-semibold">Create Organization</h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Organization name"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                autoFocus
-              />
-              <input
-                type="number"
-                placeholder="Monthly budget (optional)"
-                value={createBudget}
-                onChange={(e) => setCreateBudget(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                min={0}
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCreate}
-                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium hover:bg-blue-500"
-                >
-                  Create
-                </button>
-                <button
-                  onClick={() => setShowCreate(false)}
-                  className="rounded-lg px-5 py-2 text-sm text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+        <div className="relative mx-auto max-w-4xl px-6 pb-24 pt-24 text-center sm:pt-32">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 py-1.5 text-sm text-slate-300">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
+            Open-source AI fleet management
           </div>
-        )}
 
-        {/* Join Form */}
-        {showJoin && (
-          <div className="rounded-xl border border-slate-700 bg-slate-900 p-6">
-            <h3 className="mb-4 text-lg font-semibold">Join Organization</h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Invite code (e.g. ABC123)"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-mono uppercase placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                maxLength={6}
-                autoFocus
-              />
-              <input
-                type="text"
-                placeholder="Your name (optional)"
-                value={joinName}
-                onChange={(e) => setJoinName(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={handleJoin}
-                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium hover:bg-blue-500"
-                >
-                  Join
-                </button>
-                <button
-                  onClick={() => setShowJoin(false)}
-                  className="rounded-lg px-5 py-2 text-sm text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+          <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-6xl sm:leading-tight">
+            See every AI agent<br />
+            <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+              on one floor
+            </span>
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-400">
+            AgentFloor is a centralized monitoring hub for distributed Claude Code agents.
+            Departments are rooms, agents are avatars, skills are equipment &mdash;
+            giving your entire AI fleet a single pane of glass.
+          </p>
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href={authHref}
+              className="rounded-lg bg-emerald-600 px-6 py-3 text-sm font-semibold transition-colors hover:bg-emerald-500"
+            >
+              Start your project
+            </Link>
+            <a
+              href="https://github.com/gmuffiness/agentfloor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-6 py-3 text-sm font-medium transition-colors hover:bg-slate-800"
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" /></svg>
+              GitHub
+            </a>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="border-t border-slate-800/60 py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mb-16 text-center">
+            <h2 className="text-3xl font-bold sm:text-4xl">Everything you need to manage your AI fleet</h2>
+            <p className="mt-4 text-lg text-slate-400">
+              From spatial visualization to cost analytics &mdash; all in one place.
+            </p>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((f) => (
+              <div
+                key={f.title}
+                className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-colors hover:border-slate-700 hover:bg-slate-900"
+              >
+                <span className="text-3xl">{f.icon}</span>
+                <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-400">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="border-t border-slate-800/60 py-24">
+        <div className="mx-auto max-w-4xl px-6">
+          <div className="mb-16 text-center">
+            <h2 className="text-3xl font-bold sm:text-4xl">Up and running in minutes</h2>
+            <p className="mt-4 text-lg text-slate-400">
+              Four steps from zero to full fleet visibility.
+            </p>
+          </div>
+
+          <div className="grid gap-8 sm:grid-cols-2">
+            {STEPS.map((s) => (
+              <div key={s.step} className="flex gap-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600/20 text-sm font-bold text-emerald-400">
+                  {s.step}
+                </div>
+                <div>
+                  <h3 className="font-semibold">{s.title}</h3>
+                  <p className="mt-1 text-sm text-slate-400">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="border-t border-slate-800/60 py-24">
+        <div className="mx-auto max-w-2xl px-6 text-center">
+          <h2 className="text-3xl font-bold sm:text-4xl">
+            Ready to see your agents?
+          </h2>
+          <p className="mt-4 text-lg text-slate-400">
+            Create your organization, share the invite code, and start monitoring in minutes.
+          </p>
+          <Link
+            href={authHref}
+            className="mt-8 inline-block rounded-lg bg-emerald-600 px-8 py-3.5 text-sm font-semibold transition-colors hover:bg-emerald-500"
+          >
+            Get Started Free
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-800/60 py-12">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 text-sm text-slate-500 sm:flex-row sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span>🏘️</span>
+            <span>AgentFloor</span>
+          </div>
+          <p>&copy; {new Date().getFullYear()} AgentFloor. Open source under MIT.</p>
+        </div>
+      </footer>
     </div>
   );
 }

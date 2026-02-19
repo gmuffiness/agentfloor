@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
+import { requireOrgMember } from "@/lib/auth";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
+
+  const memberCheck = await requireOrgMember(orgId);
+  if (memberCheck instanceof NextResponse) return memberCheck;
+
   const { searchParams } = new URL(request.url);
   const dept = searchParams.get("dept");
   const vendor = searchParams.get("vendor");
@@ -35,9 +40,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { data: deptRows } = await supabase.from("departments").select("id, name").eq("org_id", orgId);
   const deptMap = new Map((deptRows ?? []).map((d) => [d.id, d.name]));
 
+  // Join human name
+  const { data: humanRows } = await supabase.from("humans").select("id, name").eq("org_id", orgId);
+  const humanMap = new Map((humanRows ?? []).map((h) => [h.id, h.name]));
+
   const result = (rows ?? []).map((a) => ({
     ...a,
     departmentName: deptMap.get(a.dept_id) ?? "",
+    humanName: a.human_id ? (humanMap.get(a.human_id) ?? "") : "",
   }));
 
   return NextResponse.json(result);
@@ -45,6 +55,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
+
+  const memberCheck = await requireOrgMember(orgId);
+  if (memberCheck instanceof NextResponse) return memberCheck;
+
   const body = await request.json();
   const supabase = getSupabase();
   const id = `agent-${Date.now()}`;
@@ -61,6 +75,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Department not found in this organization" }, { status: 400 });
   }
 
+  // Calculate position within department bounds
+  let posX = body.posX;
+  let posY = body.posY;
+  if (posX == null || posY == null) {
+    const { data: deptLayout } = await supabase
+      .from("departments")
+      .select("layout_x, layout_y, layout_w, layout_h")
+      .eq("id", body.deptId)
+      .single();
+
+    const { count: existingCount } = await supabase
+      .from("agents")
+      .select("id", { count: "exact", head: true })
+      .eq("dept_id", body.deptId);
+
+    if (deptLayout) {
+      const PAD = 30;
+      const AGENT_GAP = 50;
+      const availW = deptLayout.layout_w - PAD * 2;
+      const cols = Math.max(1, Math.floor(availW / AGENT_GAP));
+      const idx = existingCount ?? 0;
+      posX = deptLayout.layout_x + PAD + (idx % cols) * AGENT_GAP + AGENT_GAP / 2;
+      posY = deptLayout.layout_y + PAD + 20 + Math.floor(idx / cols) * AGENT_GAP + AGENT_GAP / 2;
+    } else {
+      posX = Math.random() * 200 + 50;
+      posY = Math.random() * 150 + 80;
+    }
+  }
+
   const { error: agentError } = await supabase.from("agents").insert({
     id,
     dept_id: body.deptId,
@@ -71,8 +114,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     status: body.status ?? "idle",
     monthly_cost: body.monthlyCost ?? 0,
     tokens_used: body.tokensUsed ?? 0,
-    pos_x: body.posX ?? Math.random() * 200 + 50,
-    pos_y: body.posY ?? Math.random() * 150 + 80,
+    pos_x: posX,
+    pos_y: posY,
+    human_id: body.humanId ?? null,
     last_active: now,
     created_at: now,
   });

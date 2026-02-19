@@ -26,7 +26,8 @@ function AgentNodeComponent({ data }: NodeProps) {
 
   return (
     <>
-      <Handle type="source" position={Position.Top} className="opacity-0" />
+      <Handle type="target" position={Position.Top} className="opacity-0" />
+      <Handle type="source" position={Position.Top} id="source-top" className="opacity-0" />
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
       <div
         className="rounded-lg px-3 py-2 shadow-sm border min-w-[160px]"

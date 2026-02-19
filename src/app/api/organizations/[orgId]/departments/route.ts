@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
+import { requireOrgMember } from "@/lib/auth";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
+
+  const memberCheck = await requireOrgMember(orgId);
+  if (memberCheck instanceof NextResponse) return memberCheck;
+
   const supabase = getSupabase();
 
   const { data: rows, error } = await supabase
@@ -23,6 +28,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
       return {
         ...d,
+        parentId: d.parent_id ?? null,
         agentCount: count ?? 0,
         layout: { x: d.layout_x, y: d.layout_y, width: d.layout_w, height: d.layout_h },
       };
@@ -34,30 +40,45 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
+
+  const memberCheck = await requireOrgMember(orgId);
+  if (memberCheck instanceof NextResponse) return memberCheck;
+
   const body = await request.json();
   const supabase = getSupabase();
   const id = `dept-${Date.now()}`;
   const now = new Date().toISOString();
 
-  // Calculate layout position (stack below existing departments)
+  // Calculate grid layout position (3 columns)
+  const deptW = body.layoutW ?? 300;
+  const deptH = body.layoutH ?? 240;
+  const GRID_COLS = 3;
+  const GAP_X = 50;
+  const GAP_Y = 80; // extra vertical gap for roof
+  const START_X = 50;
+  const START_Y = 50;
+
   const { data: existing } = await supabase
     .from("departments")
-    .select("layout_y, layout_h")
+    .select("id")
     .eq("org_id", orgId);
-  const maxY = (existing ?? []).reduce((max, d) => Math.max(max, d.layout_y + d.layout_h), 0);
+  const count = (existing ?? []).length;
+  const col = count % GRID_COLS;
+  const row = Math.floor(count / GRID_COLS);
 
   const { error } = await supabase.from("departments").insert({
     id,
     org_id: orgId,
+    parent_id: body.parentId ?? null,
     name: body.name,
     description: body.description ?? "",
     budget: body.budget ?? 0,
     monthly_spend: 0,
     primary_vendor: body.primaryVendor ?? "anthropic",
-    layout_x: 50,
-    layout_y: maxY + 50,
-    layout_w: body.layoutW ?? 300,
-    layout_h: body.layoutH ?? 240,
+    layout_x: START_X + col * (deptW + GAP_X),
+    layout_y: START_Y + row * (deptH + GAP_Y),
+    layout_w: deptW,
+    layout_h: deptH,
     created_at: now,
   });
 

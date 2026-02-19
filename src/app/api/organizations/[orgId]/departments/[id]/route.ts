@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
+import { requireOrgMember } from "@/lib/auth";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ orgId: string; id: string }> }) {
-  const { id } = await params;
+  const { orgId, id } = await params;
+
+  const memberCheck = await requireOrgMember(orgId);
+  if (memberCheck instanceof NextResponse) return memberCheck;
   const body = await request.json();
   const supabase = getSupabase();
 
@@ -21,6 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (body.description !== undefined) updates.description = body.description;
   if (body.budget !== undefined) updates.budget = body.budget;
   if (body.primaryVendor !== undefined) updates.primary_vendor = body.primaryVendor;
+  if (body.parentId !== undefined) updates.parent_id = body.parentId;
 
   if (Object.keys(updates).length > 0) {
     await supabase.from("departments").update(updates).eq("id", id);
@@ -30,7 +35,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ orgId: string; id: string }> }) {
-  const { id } = await params;
+  const { orgId, id } = await params;
+
+  const memberCheck = await requireOrgMember(orgId);
+  if (memberCheck instanceof NextResponse) return memberCheck;
   const supabase = getSupabase();
 
   const { data: existing, error: findError } = await supabase

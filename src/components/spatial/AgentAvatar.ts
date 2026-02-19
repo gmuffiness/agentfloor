@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, Texture, Rectangle } from "pixi.js";
+import { Assets, Container, Graphics, Sprite, Text, Texture, Rectangle } from "pixi.js";
 import type { Agent } from "@/types";
 import { getVendorColor } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
@@ -6,42 +6,49 @@ import { useAppStore } from "@/stores/app-store";
 /**
  * Sprite sheet: /assets/characters.png (384x672)
  * 12 columns x 21 rows of 32x32 sprites
- * 20 characters: 4 per row-group, 5 row-groups
- * Each character: 3 frames (cols) x 4 directions (rows)
- *   Row 0: facing down  (frame 0=stand, 1=walk-left, 2=walk-right)
- *   Row 1: facing left
- *   Row 2: facing right
- *   Row 3: facing up
+ * Each row: 4 characters × 3 frames each (stand, walk-left, walk-right)
+ * Total: up to 84 characters (4 per row × 21 rows)
  */
 
 const SPRITE_SIZE = 32;
 const CHARS_PER_ROW = 4;
 const FRAMES_PER_CHAR = 3;
-const DIRECTIONS = 4;
+const TOTAL_ROWS = 21;
 
-// Character indices to use (pick visually distinct ones from the 20 available)
-// We'll assign based on agent name hash
-const CHARACTER_POOL = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
+// Character indices (row * 4 + col), use ONLY col 0 (front-facing) from rows 1-20.
+// Col 0 = front, col 1 = front-variant, col 2 = back, col 3 = side.
+const CHARACTER_POOL = Array.from({ length: TOTAL_ROWS - 1 }, (_, i) => (i + 1) * CHARS_PER_ROW);
 
+const SHEET_KEY = "characters-sheet";
 let sheetTexture: Texture | null = null;
 
-function getSheetTexture(): Texture {
-  if (!sheetTexture) {
-    sheetTexture = Texture.from("/assets/characters.png");
-  }
-  return sheetTexture;
+/** Load the sprite sheet asynchronously. Must be called before createAgentAvatar. */
+export async function loadSpriteSheet(): Promise<void> {
+  if (sheetTexture && sheetTexture.source) return;
+  sheetTexture = await Assets.load<Texture>({
+    alias: SHEET_KEY,
+    src: "/assets/characters.png",
+  });
+}
+
+/** Reset cached sprite sheet (call on Pixi app destruction). */
+export function resetSpriteSheet(): void {
+  sheetTexture = null;
+  Assets.cache.remove(SHEET_KEY);
 }
 
 /** Get a specific frame texture for a character */
-function getCharFrame(charIndex: number, direction: number, frame: number): Texture {
-  const base = getSheetTexture();
+function getCharFrame(charIndex: number, frame: number): Texture {
+  if (!sheetTexture || !sheetTexture.source) {
+    return Texture.EMPTY;
+  }
   const charCol = charIndex % CHARS_PER_ROW;
-  const charRowGroup = Math.floor(charIndex / CHARS_PER_ROW);
+  const charRow = Math.floor(charIndex / CHARS_PER_ROW);
 
   const pixelX = (charCol * FRAMES_PER_CHAR + frame) * SPRITE_SIZE;
-  const pixelY = (charRowGroup * DIRECTIONS + direction) * SPRITE_SIZE;
+  const pixelY = charRow * SPRITE_SIZE;
 
-  return new Texture({ source: base.source, frame: new Rectangle(pixelX, pixelY, SPRITE_SIZE, SPRITE_SIZE) });
+  return new Texture({ source: sheetTexture.source, frame: new Rectangle(pixelX, pixelY, SPRITE_SIZE, SPRITE_SIZE) });
 }
 
 function nameHash(name: string): number {
@@ -71,11 +78,6 @@ export function createAgentAvatar(agent: Agent): Container {
   const hash = nameHash(agent.name);
   const charIndex = CHARACTER_POOL[hash % CHARACTER_POOL.length];
 
-  // Direction: 0=down (front-facing default)
-  const direction = 0;
-  // Frame: 0=standing, 1/2=walking
-  const frame = 0;
-
   // === Ground shadow ===
   const shadow = new Graphics();
   shadow.ellipse(0, 16, 12, 4);
@@ -83,7 +85,7 @@ export function createAgentAvatar(agent: Agent): Container {
   container.addChild(shadow);
 
   // === Character sprite (32x32) ===
-  const charTexture = getCharFrame(charIndex, direction, frame);
+  const charTexture = getCharFrame(charIndex, 0);
   const charSprite = new Sprite(charTexture);
   charSprite.anchor.set(0.5, 0.5);
   charSprite.x = 0;
@@ -92,16 +94,7 @@ export function createAgentAvatar(agent: Agent): Container {
   charSprite.scale.set(1.4);
   container.addChild(charSprite);
 
-  // Store walk frames for animation
-  const walkFrames = [
-    getCharFrame(charIndex, direction, 0),
-    getCharFrame(charIndex, direction, 1),
-    getCharFrame(charIndex, direction, 2),
-    getCharFrame(charIndex, direction, 1),
-  ];
-  (container as Container & { _walkFrames: Texture[] })._walkFrames = walkFrames;
-  (container as Container & { _charSprite: Sprite })._charSprite = charSprite;
-  (container as Container & { _walkFrame: number })._walkFrame = 0;
+  // No walk frame cycling — agents stay in standing front-facing pose
 
   // === Active glow ===
   if (isActive) {

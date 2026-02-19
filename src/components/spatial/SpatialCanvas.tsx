@@ -5,7 +5,7 @@ import { Application, Container, Graphics, Sprite, Texture } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { useAppStore } from "@/stores/app-store";
 import { createDepartmentRoom } from "./DepartmentRoom";
-import { createAgentAvatar } from "./AgentAvatar";
+import { createAgentAvatar, loadSpriteSheet, resetSpriteSheet } from "./AgentAvatar";
 import MapControls from "./MapControls";
 
 // Shared viewport ref for programmatic access
@@ -14,9 +14,10 @@ export function getViewport(): Viewport | null {
   return sharedViewport;
 }
 
-// World dimensions
-const WORLD_WIDTH = 1200;
-const WORLD_HEIGHT = 600;
+// Minimum world dimensions (expanded dynamically based on departments)
+const MIN_WORLD_WIDTH = 1200;
+const MIN_WORLD_HEIGHT = 600;
+const WORLD_PADDING = 150;
 const TILE_SIZE = 32;
 
 // Game-style ground color palette
@@ -115,22 +116,39 @@ function drawPathV(g: Graphics, x: number, y: number, h: number) {
   g.fill(PATH_EDGE);
 }
 
+/** Check if a point overlaps with any department room (with padding) */
+function overlapsRoom(
+  px: number, py: number, size: number,
+  rooms: { x: number; y: number; w: number; h: number }[],
+  pad: number,
+): boolean {
+  for (const r of rooms) {
+    if (
+      px + size > r.x - pad && px < r.x + r.w + pad &&
+      py + size > r.y - pad && py < r.y + r.h + pad
+    ) return true;
+  }
+  return false;
+}
+
 /** Draw a tiled grass ground layer with paths, trees, and decorations */
-function createGroundLayer(): Container {
+function createGroundLayer(
+  worldW: number, worldH: number,
+  rooms: { x: number; y: number; w: number; h: number }[],
+): Container {
   const ground = new Container();
   ground.label = "ground-layer";
 
   // Tile grid pattern with 3-shade grass variation
   const tiles = new Graphics();
   const pad = TILE_SIZE * 4;
-  const cols = Math.ceil((WORLD_WIDTH + pad * 2) / TILE_SIZE);
-  const rows = Math.ceil((WORLD_HEIGHT + pad * 2) / TILE_SIZE);
+  const cols = Math.ceil((worldW + pad * 2) / TILE_SIZE);
+  const rows = Math.ceil((worldH + pad * 2) / TILE_SIZE);
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const tx = col * TILE_SIZE - pad;
       const ty = row * TILE_SIZE - pad;
-      // Use seeded random for natural 3-shade variation
       const shade = seededRand(col, row);
       const colorIdx = shade < 0.4 ? 0 : shade < 0.75 ? 1 : 2;
       tiles.rect(tx, ty, TILE_SIZE, TILE_SIZE);
@@ -139,80 +157,55 @@ function createGroundLayer(): Container {
   }
   ground.addChild(tiles);
 
-  // Dirt paths connecting department rooms
-  // Room positions from mock data:
-  // Top row: (50,50,300,240), (400,50,270,220), (720,50,300,240)
-  // Bottom row: (50,340,240,200), (340,340,270,200)
+  // Dirt paths connecting adjacent department rooms
   const paths = new Graphics();
-
-  // Horizontal paths between top row rooms (at ~y:160, mid-height of rooms)
-  drawPathH(paths, 350, 160, 50);   // Room1 -> Room2
-  drawPathH(paths, 670, 160, 50);   // Room2 -> Room3
-
-  // Vertical paths from top row to bottom row
-  drawPathV(paths, 192, 290, 50);   // Room1 down to Room4
-  drawPathV(paths, 490, 270, 70);   // Room2 down to Room5
-
-  // Horizontal path between bottom row rooms
-  drawPathH(paths, 290, 430, 50);   // Room4 -> Room5
-
+  const sorted = [...rooms].sort((a, b) => a.y === b.y ? a.x - b.x : a.y - b.y);
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i];
+      const b = sorted[j];
+      const aRight = a.x + a.w;
+      const bLeft = b.x;
+      const aMid = a.y + a.h / 2;
+      const bMid = b.y + b.h / 2;
+      // Horizontal neighbors (same row-ish)
+      if (Math.abs(aMid - bMid) < 100 && bLeft > aRight && bLeft - aRight < 120) {
+        drawPathH(paths, aRight, Math.min(aMid, bMid), bLeft - aRight);
+      }
+      // Vertical neighbors (same column-ish)
+      const aCx = a.x + a.w / 2;
+      const bCx = b.x + b.w / 2;
+      const aBot = a.y + a.h;
+      const bTop = b.y;
+      if (Math.abs(aCx - bCx) < 150 && bTop > aBot && bTop - aBot < 150) {
+        drawPathV(paths, Math.min(aCx, bCx), aBot, bTop - aBot);
+      }
+    }
+  }
   ground.addChild(paths);
 
-  // Ambient decorations: trees in empty spaces between/around rooms
+  // Procedural decorations using seeded random, avoiding room areas
   const decorations = new Graphics();
+  const DECOR_STEP = 80;
 
-  // Trees placed deterministically in gaps between rooms
-  const treePositions = [
-    // Between top-right area and edge
-    { x: 1050, y: 60 }, { x: 1080, y: 140 }, { x: 1060, y: 230 },
-    // Right side open area
-    { x: 1040, y: 360 }, { x: 1080, y: 420 }, { x: 1050, y: 500 },
-    // Bottom open area
-    { x: 650, y: 360 }, { x: 700, y: 420 }, { x: 750, y: 500 },
-    { x: 820, y: 380 }, { x: 900, y: 450 }, { x: 950, y: 360 },
-    // Left edge
-    { x: 10, y: 300 }, { x: -20, y: 560 },
-    // Bottom edge
-    { x: 150, y: 560 }, { x: 450, y: 560 }, { x: 630, y: 560 },
-    // Top edge gaps
-    { x: 365, y: 10 }, { x: 685, y: 10 },
-  ];
-  for (const t of treePositions) {
-    drawTree(decorations, t.x, t.y);
-  }
-
-  // Bushes scattered around
-  const bushPositions = [
-    { x: 1070, y: 310 }, { x: 30, y: 295 }, { x: 620, y: 305 },
-    { x: 330, y: 300 }, { x: 700, y: 295 }, { x: 850, y: 520 },
-    { x: 200, y: 555 }, { x: 500, y: 555 }, { x: 980, y: 530 },
-    { x: 1090, y: 180 }, { x: 10, y: 550 },
-  ];
-  for (const b of bushPositions) {
-    drawBush(decorations, b.x, b.y);
-  }
-
-  // Tiny flowers scattered across grass areas (deterministic by position)
-  const flowerPositions = [
-    { x: 20, y: 30 }, { x: 380, y: 28 }, { x: 695, y: 30 },
-    { x: 1060, y: 50 }, { x: 1090, y: 270 }, { x: 640, y: 320 },
-    { x: 330, y: 310 }, { x: 80, y: 310 }, { x: 750, y: 540 },
-    { x: 900, y: 500 }, { x: 160, y: 550 }, { x: 420, y: 555 },
-    { x: 1050, y: 480 }, { x: 970, y: 400 }, { x: 820, y: 310 },
-  ];
-  for (let i = 0; i < flowerPositions.length; i++) {
-    const f = flowerPositions[i];
-    drawFlower(decorations, f.x, f.y, FLOWER_COLORS[i % FLOWER_COLORS.length]);
-  }
-
-  // Small stones
-  const stonePositions = [
-    { x: 360, y: 300 }, { x: 680, y: 300 }, { x: 1080, y: 350 },
-    { x: 30, y: 540 }, { x: 500, y: 540 }, { x: 800, y: 550 },
-    { x: 950, y: 250 }, { x: 1040, y: 500 },
-  ];
-  for (const s of stonePositions) {
-    drawStone(decorations, s.x, s.y);
+  for (let dx = -pad; dx < worldW + pad; dx += DECOR_STEP) {
+    for (let dy = -pad; dy < worldH + pad; dy += DECOR_STEP) {
+      const r = seededRand(dx * 7, dy * 13);
+      if (r < 0.15 && !overlapsRoom(dx, dy, 24, rooms, 20)) {
+        drawTree(decorations, dx + seededRand(dx, dy * 3) * 20, dy + seededRand(dy, dx * 5) * 20);
+      } else if (r < 0.22 && !overlapsRoom(dx, dy, 14, rooms, 16)) {
+        drawBush(decorations, dx + seededRand(dx * 2, dy) * 16, dy + seededRand(dy * 2, dx) * 16);
+      } else if (r < 0.30 && !overlapsRoom(dx, dy, 6, rooms, 10)) {
+        drawFlower(
+          decorations,
+          dx + seededRand(dx * 3, dy) * 20,
+          dy + seededRand(dy * 3, dx) * 20,
+          FLOWER_COLORS[Math.floor(seededRand(dx, dy * 7) * FLOWER_COLORS.length)],
+        );
+      } else if (r < 0.34 && !overlapsRoom(dx, dy, 8, rooms, 12)) {
+        drawStone(decorations, dx + seededRand(dx * 5, dy) * 16, dy + seededRand(dy * 5, dx) * 16);
+      }
+    }
   }
 
   ground.addChild(decorations);
@@ -255,8 +248,8 @@ export default function SpatialCanvas() {
       const viewport = new Viewport({
         screenWidth: div.clientWidth,
         screenHeight: div.clientHeight,
-        worldWidth: WORLD_WIDTH,
-        worldHeight: WORLD_HEIGHT,
+        worldWidth: MIN_WORLD_WIDTH,
+        worldHeight: MIN_WORLD_HEIGHT,
         events: app.renderer.events,
       });
 
@@ -271,9 +264,32 @@ export default function SpatialCanvas() {
       viewportRef.current = viewport;
       sharedViewport = viewport;
 
+      // Calculate dynamic world dimensions from department data
+      const rooms = organization.departments.map((d) => ({
+        x: d.layout.x,
+        y: d.layout.y,
+        w: d.layout.width,
+        h: d.layout.height,
+      }));
+
+      let worldWidth = MIN_WORLD_WIDTH;
+      let worldHeight = MIN_WORLD_HEIGHT;
+      for (const r of rooms) {
+        worldWidth = Math.max(worldWidth, r.x + r.w + WORLD_PADDING);
+        worldHeight = Math.max(worldHeight, r.y + r.h + WORLD_PADDING);
+      }
+
+      viewport.worldWidth = worldWidth;
+      viewport.worldHeight = worldHeight;
+
       // Draw ground layer BEFORE rooms and avatars
-      const groundLayer = createGroundLayer();
+      const groundLayer = createGroundLayer(worldWidth, worldHeight, rooms);
       viewport.addChild(groundLayer);
+
+      // Load sprite sheet before creating avatars
+      await loadSpriteSheet();
+
+      if (destroyed) { app.destroy(true); return; }
 
       // Render departments and agents
       const avatarContainers: (Container & { _baseY: number; _agentStatus: string })[] = [];
@@ -291,7 +307,27 @@ export default function SpatialCanvas() {
         });
         viewport.addChild(roomContainer);
 
-        for (const agent of dept.agents) {
+        const { x: dx, y: dy, width: dw, height: dh } = dept.layout;
+        const PAD = 30;
+        const AGENT_GAP = 50;
+        const availW = dw - PAD * 2;
+        const cols = Math.max(1, Math.floor(availW / AGENT_GAP));
+
+        for (let ai = 0; ai < dept.agents.length; ai++) {
+          const agent = dept.agents[ai];
+          // Ensure agent position falls within its department room
+          const px = agent.position.x;
+          const py = agent.position.y;
+          const inside =
+            px >= dx + PAD && px <= dx + dw - PAD &&
+            py >= dy + PAD && py <= dy + dh - PAD;
+
+          if (!inside) {
+            // Recalculate position within room
+            agent.position.x = dx + PAD + (ai % cols) * AGENT_GAP + AGENT_GAP / 2;
+            agent.position.y = dy + PAD + 20 + Math.floor(ai / cols) * AGENT_GAP + AGENT_GAP / 2;
+          }
+
           const avatar = createAgentAvatar(agent);
           viewport.addChild(avatar);
           avatarContainers.push(avatar as Container & { _baseY: number; _agentStatus: string });
@@ -299,35 +335,19 @@ export default function SpatialCanvas() {
       }
 
       // Fit all rooms in view initially
-      viewport.fit(true, WORLD_WIDTH, WORLD_HEIGHT);
-      viewport.moveCenter(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+      viewport.fit(true, worldWidth, worldHeight);
+      viewport.moveCenter(worldWidth / 2, worldHeight / 2);
 
-      // Animate active agents (walk cycle + floating) and error agents (pulsing)
+      // Animate active agents (gentle floating) and error agents (pulsing)
       let elapsed = 0;
-      let walkTimer = 0;
-      const WALK_SPEED = 0.2; // seconds per frame
       app.ticker.add((ticker) => {
         const dt = ticker.deltaTime / 60; // seconds
         elapsed += dt;
-        walkTimer += dt;
-
-        const shouldAdvanceFrame = walkTimer >= WALK_SPEED;
-        if (shouldAdvanceFrame) walkTimer -= WALK_SPEED;
 
         for (const avatar of avatarContainers) {
-          const ext = avatar as Container & {
-            _walkFrames?: Texture[];
-            _charSprite?: Sprite;
-            _walkFrame?: number;
-          };
           if (avatar._agentStatus === "active") {
-            // Floating bob
+            // Gentle floating bob only — no sprite frame changes
             avatar.y = avatar._baseY + Math.sin(elapsed * 2.5 + avatar._baseY) * 3;
-            // Walk frame cycling
-            if (shouldAdvanceFrame && ext._walkFrames && ext._charSprite) {
-              ext._walkFrame = ((ext._walkFrame ?? 0) + 1) % ext._walkFrames.length;
-              ext._charSprite.texture = ext._walkFrames[ext._walkFrame];
-            }
           } else if (avatar._agentStatus === "error") {
             // Pulse the error indicator
             const pulse = 0.85 + Math.sin(elapsed * 5) * 0.15;
@@ -353,6 +373,7 @@ export default function SpatialCanvas() {
     return () => {
       destroyed = true;
       sharedViewport = null;
+      resetSpriteSheet();
       const currentApp = appRef.current;
       if (currentApp) {
         const cleanup = (currentApp as Application & { _cleanup?: () => void })._cleanup;
@@ -386,8 +407,8 @@ export default function SpatialCanvas() {
   const handleFitAll = useCallback(() => {
     const vp = viewportRef.current;
     if (vp) {
-      vp.fit(true, WORLD_WIDTH, WORLD_HEIGHT);
-      vp.moveCenter(WORLD_WIDTH / 2 - 100, WORLD_HEIGHT / 2 - 20);
+      vp.fit(true, vp.worldWidth, vp.worldHeight);
+      vp.moveCenter(vp.worldWidth / 2, vp.worldHeight / 2);
     }
   }, []);
 

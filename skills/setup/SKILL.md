@@ -7,8 +7,9 @@ You are running the AgentFloor setup wizard. This registers the current project'
 1. **Git repo**: Run `git remote get-url origin` via Bash to get the repo URL. Run `basename $(git rev-parse --show-toplevel)` to get the project name.
 2. **Skills**: Use Glob to find `.claude/commands/*.md` and `.claude/skills/**/*.md` files. Read each file's first heading to get the skill name.
 3. **MCP servers**: Read `.claude/settings.local.json` and `.claude/settings.json` if they exist. Extract keys from `mcpServers` object.
-4. **Existing config**: Check if `.agentfloor/config.json` exists. If so, read it — this determines whether this is a first-time or returning setup.
-5. **Global config**: Check if `~/.agentfloor/config.json` exists. This stores the hub URL and known organizations from previous setups on this machine.
+4. **Project context (CLAUDE.md)**: Check for `.claude/CLAUDE.md` or root `CLAUDE.md`. If found, read its content — this will be sent as agent context for the chat feature.
+5. **Existing config**: Check if `.agentfloor/config.json` exists. If so, read it — this determines whether this is a first-time or returning setup.
+6. **Global config**: Check if `~/.agentfloor/config.json` exists. This stores the hub URL and known organizations from previous setups on this machine.
 
 ## Flow: First-Time Setup (no global config)
 
@@ -142,7 +143,8 @@ curl -s -X POST {hubUrl}/api/register \
     "description": "Project: <gitRepoUrl>",
     "skills": [<detected skill names as strings>],
     "mcpTools": [<detected MCP servers as {"name":"x","server":"x"}>],
-    "resources": [{"type":"git_repo","name":"<repo-name>","url":"<gitRepoUrl>","accessLevel":"write"}]
+    "resources": [{"type":"git_repo","name":"<repo-name>","url":"<gitRepoUrl>","accessLevel":"write"}],
+    "context": [{"type":"claude_md","content":"<CLAUDE.md content>","sourceFile":".claude/CLAUDE.md"}]
   }'
 ```
 

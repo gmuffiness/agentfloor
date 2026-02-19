@@ -5,14 +5,18 @@ import { usePathname } from "next/navigation";
 import { useAppStore } from "@/stores/app-store";
 import { useOrgId } from "@/hooks/useOrgId";
 import { formatCurrency, cn } from "@/lib/utils";
+import { AnnouncementDropdown } from "./AnnouncementDropdown";
 
 const navSuffixes = [
   { suffix: "", label: "Map" },
   { suffix: "/graph", label: "Graph" },
+  { suffix: "/org-chart", label: "Org Chart" },
   { suffix: "/agents", label: "Agents" },
   { suffix: "/departments", label: "Departments" },
   { suffix: "/cost", label: "Cost" },
   { suffix: "/skills", label: "Skills" },
+  { suffix: "/chat", label: "Chat" },
+  { suffix: "/settings", label: "Settings" },
 ] as const;
 
 export function TopBar() {
@@ -41,6 +45,7 @@ export function TopBar() {
         <span className="text-sm font-medium text-slate-300">
           {formatCurrency(getTotalMonthlyCost())}/mo
         </span>
+        <AnnouncementDropdown />
         <nav className="flex items-center gap-1">
           {navSuffixes.map((link) => {
             const href = `${orgBase}${link.suffix}`;

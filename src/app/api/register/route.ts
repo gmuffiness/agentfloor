@@ -35,11 +35,21 @@ export async function POST(request: NextRequest) {
   let deptId = departmentId;
   if (!deptId && departmentName) {
     deptId = `dept-${Date.now()}`;
+    const GRID_COLS = 3;
+    const DEPT_W = 300;
+    const DEPT_H = 240;
+    const GAP_X = 50;
+    const GAP_Y = 80;
+    const START_X = 50;
+    const START_Y = 50;
+
     const { data: existing } = await supabase
       .from("departments")
-      .select("layout_y, layout_h")
+      .select("id")
       .eq("org_id", resolvedOrgId);
-    const maxY = (existing ?? []).reduce((max, d) => Math.max(max, d.layout_y + d.layout_h), 0);
+    const count = (existing ?? []).length;
+    const col = count % GRID_COLS;
+    const row = Math.floor(count / GRID_COLS);
 
     const { error: deptError } = await supabase.from("departments").insert({
       id: deptId,
@@ -49,10 +59,10 @@ export async function POST(request: NextRequest) {
       budget: 0,
       monthly_spend: 0,
       primary_vendor: vendor,
-      layout_x: 50,
-      layout_y: maxY + 50,
-      layout_w: 300,
-      layout_h: 240,
+      layout_x: START_X + col * (DEPT_W + GAP_X),
+      layout_y: START_Y + row * (DEPT_H + GAP_Y),
+      layout_w: DEPT_W,
+      layout_h: DEPT_H,
       created_at: new Date().toISOString(),
     });
 
@@ -78,9 +88,35 @@ export async function POST(request: NextRequest) {
     deptId = deptRows[0].id;
   }
 
-  // Create agent
+  // Create agent — position within department bounds
   const agentId = `agent-${Date.now()}`;
   const now = new Date().toISOString();
+
+  const { data: deptLayout } = await supabase
+    .from("departments")
+    .select("layout_x, layout_y, layout_w, layout_h")
+    .eq("id", deptId)
+    .single();
+
+  const { count: existingCount } = await supabase
+    .from("agents")
+    .select("id", { count: "exact", head: true })
+    .eq("dept_id", deptId);
+
+  let posX: number;
+  let posY: number;
+  if (deptLayout) {
+    const PAD = 30;
+    const AGENT_GAP = 50;
+    const availW = deptLayout.layout_w - PAD * 2;
+    const cols = Math.max(1, Math.floor(availW / AGENT_GAP));
+    const idx = existingCount ?? 0;
+    posX = deptLayout.layout_x + PAD + (idx % cols) * AGENT_GAP + AGENT_GAP / 2;
+    posY = deptLayout.layout_y + PAD + 20 + Math.floor(idx / cols) * AGENT_GAP + AGENT_GAP / 2;
+  } else {
+    posX = Math.random() * 200 + 50;
+    posY = Math.random() * 150 + 80;
+  }
 
   const { error: agentError } = await supabase.from("agents").insert({
     id: agentId,
@@ -92,8 +128,8 @@ export async function POST(request: NextRequest) {
     status: "active",
     monthly_cost: body.monthlyCost ?? 0,
     tokens_used: 0,
-    pos_x: Math.random() * 200 + 50,
-    pos_y: Math.random() * 150 + 80,
+    pos_x: posX,
+    pos_y: posY,
     last_active: now,
     created_at: now,
   });
@@ -150,6 +186,19 @@ export async function POST(request: NextRequest) {
       };
     });
     await supabase.from("mcp_tools").insert(mcpInserts);
+  }
+
+  // Save agent context (CLAUDE.md etc.)
+  if (body.context?.length) {
+    const contextInserts = body.context.map((ctx: { type: string; content: string; sourceFile?: string }) => ({
+      id: `ctx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      agent_id: agentId,
+      type: ctx.type ?? "custom",
+      content: ctx.content,
+      source_file: ctx.sourceFile ?? null,
+      updated_at: now,
+    }));
+    await supabase.from("agent_context").insert(contextInserts);
   }
 
   // Recalculate department spend

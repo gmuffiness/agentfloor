@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import type { Organization, Department, Agent, Vendor } from "@/types";
-import { mockOrganization } from "@/data/mock-data";
+import type { Organization, Department, Agent, Vendor, Announcement, AnnouncementTargetType, AnnouncementPriority } from "@/types";
 
 interface AppState {
   organization: Organization;
@@ -18,6 +17,18 @@ interface AppState {
   setZoomLevel: (level: number) => void;
   clearSelection: () => void;
   fetchOrganization: (orgId: string) => Promise<void>;
+  // Announcements
+  announcements: Announcement[];
+  fetchAnnouncements: (orgId: string) => Promise<void>;
+  createAnnouncement: (orgId: string, data: {
+    title: string;
+    content: string;
+    targetType?: AnnouncementTargetType;
+    targetId?: string | null;
+    priority?: AnnouncementPriority;
+    expiresAt?: string | null;
+  }) => Promise<void>;
+  deleteAnnouncement: (orgId: string, id: string) => Promise<void>;
   // Computed helpers
   getSelectedDepartment: () => Department | null;
   getSelectedAgent: () => Agent | null;
@@ -26,13 +37,19 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  organization: mockOrganization,
+  organization: {
+    id: "",
+    name: "",
+    totalBudget: 0,
+    departments: [],
+  },
   currentOrgId: null,
   selectedDepartmentId: null,
   selectedAgentId: null,
   viewMode: "map",
   zoomLevel: 1,
   isLoaded: false,
+  announcements: [],
 
   setCurrentOrgId: (orgId) => set({ currentOrgId: orgId }),
 
@@ -49,6 +66,46 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearSelection: () =>
     set({ selectedDepartmentId: null, selectedAgentId: null }),
 
+  fetchAnnouncements: async (orgId: string) => {
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/announcements`);
+      if (res.ok) {
+        const data: Announcement[] = await res.json();
+        set({ announcements: data });
+      }
+    } catch {
+      console.warn("Failed to fetch announcements");
+    }
+  },
+
+  createAnnouncement: async (orgId: string, data) => {
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/announcements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await get().fetchAnnouncements(orgId);
+      }
+    } catch {
+      console.warn("Failed to create announcement");
+    }
+  },
+
+  deleteAnnouncement: async (orgId: string, id: string) => {
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/announcements/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        set({ announcements: get().announcements.filter((a) => a.id !== id) });
+      }
+    } catch {
+      console.warn("Failed to delete announcement");
+    }
+  },
+
   fetchOrganization: async (orgId: string) => {
     try {
       const res = await fetch(`/api/organizations/${orgId}`);
@@ -57,8 +114,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ organization: data, currentOrgId: orgId, isLoaded: true });
       }
     } catch {
-      // Fall back to mock data on error
-      console.warn("Failed to fetch organization from API, using mock data");
+      console.warn("Failed to fetch organization from API");
     }
   },
 

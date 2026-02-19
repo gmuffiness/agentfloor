@@ -18,7 +18,8 @@ function DepartmentNodeComponent({ data }: NodeProps) {
 
   return (
     <>
-      <Handle type="target" position={Position.Bottom} className="opacity-0" />
+      <Handle type="target" position={Position.Top} className="opacity-0" />
+      <Handle type="source" position={Position.Bottom} className="opacity-0" />
       <div
         className="rounded-lg bg-white px-4 py-3 shadow-md min-w-[200px]"
         style={{ borderLeft: `4px solid ${color}` }}

@@ -1,20 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
-
-function generateInviteCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+import { requireAuth } from "@/lib/auth";
+import { generateInviteCode } from "@/lib/invite-code";
 
 export async function GET() {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
+  const { user } = authResult;
   const supabase = getSupabase();
+
+  // Only return orgs the user belongs to
+  const { data: memberships } = await supabase
+    .from("org_members")
+    .select("org_id")
+    .eq("user_id", user.id);
+
+  const orgIds = (memberships ?? []).map((m) => m.org_id);
+  if (orgIds.length === 0) {
+    return NextResponse.json([]);
+  }
+
   const { data, error } = await supabase
     .from("organizations")
     .select("*")
+    .in("id", orgIds)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -34,8 +44,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
+  const { user } = authResult;
   const body = await request.json();
-  const { name, budget, createdBy } = body;
+  const { name, budget } = body;
 
   if (!name) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
@@ -45,13 +59,15 @@ export async function POST(request: NextRequest) {
   const id = `org-${Date.now()}`;
   const now = new Date().toISOString();
   const inviteCode = generateInviteCode();
+  const displayName = user.user_metadata?.full_name ?? user.email ?? "Unknown";
 
   const { error: orgError } = await supabase.from("organizations").insert({
     id,
     name,
     total_budget: budget ?? 0,
     invite_code: inviteCode,
-    created_by: createdBy ?? null,
+    created_by: displayName,
+    creator_user_id: user.id,
     created_at: now,
   });
 
@@ -60,16 +76,16 @@ export async function POST(request: NextRequest) {
   }
 
   // Add creator as admin member
-  if (createdBy) {
-    await supabase.from("org_members").insert({
-      id: `member-${Date.now()}`,
-      org_id: id,
-      name: createdBy,
-      role: "admin",
-      status: "active",
-      joined_at: now,
-    });
-  }
+  await supabase.from("org_members").insert({
+    id: `member-${Date.now()}`,
+    org_id: id,
+    name: displayName,
+    email: user.email ?? null,
+    role: "admin",
+    status: "active",
+    user_id: user.id,
+    joined_at: now,
+  });
 
   return NextResponse.json({ id, name, inviteCode }, { status: 201 });
 }
