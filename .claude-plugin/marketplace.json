@@ -1,0 +1,15 @@
+{
+  "name": "agentfloor",
+  "displayName": "AgentFloor",
+  "description": "AI Agent Fleet Management - monitor and manage your Claude Code agents from a spatial dashboard",
+  "version": "0.1.0",
+  "author": "AgentFloor",
+  "license": "MIT",
+  "repository": "https://github.com/your-org/agentfloor",
+  "keywords": ["monitoring", "fleet-management", "agents", "dashboard", "spatial"],
+  "categories": ["monitoring", "devtools"],
+  "minClaudeCodeVersion": "1.0.0",
+  "install": {
+    "instructions": "Clone the repo and run /agentfloor:setup"
+  }
+}

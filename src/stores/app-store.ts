@@ -4,18 +4,20 @@ import { mockOrganization } from "@/data/mock-data";
 
 interface AppState {
   organization: Organization;
+  currentOrgId: string | null;
   selectedDepartmentId: string | null;
   selectedAgentId: string | null;
   viewMode: "map" | "cost" | "skills";
   zoomLevel: number;
   isLoaded: boolean;
   // Actions
+  setCurrentOrgId: (orgId: string) => void;
   selectDepartment: (id: string | null) => void;
   selectAgent: (id: string | null) => void;
   setViewMode: (mode: "map" | "cost" | "skills") => void;
   setZoomLevel: (level: number) => void;
   clearSelection: () => void;
-  fetchOrganization: () => Promise<void>;
+  fetchOrganization: (orgId: string) => Promise<void>;
   // Computed helpers
   getSelectedDepartment: () => Department | null;
   getSelectedAgent: () => Agent | null;
@@ -25,11 +27,14 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   organization: mockOrganization,
+  currentOrgId: null,
   selectedDepartmentId: null,
   selectedAgentId: null,
   viewMode: "map",
   zoomLevel: 1,
   isLoaded: false,
+
+  setCurrentOrgId: (orgId) => set({ currentOrgId: orgId }),
 
   selectDepartment: (id) =>
     set({ selectedDepartmentId: id, selectedAgentId: null }),
@@ -44,12 +49,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearSelection: () =>
     set({ selectedDepartmentId: null, selectedAgentId: null }),
 
-  fetchOrganization: async () => {
+  fetchOrganization: async (orgId: string) => {
     try {
-      const res = await fetch("/api/organization");
+      const res = await fetch(`/api/organizations/${orgId}`);
       if (res.ok) {
         const data: Organization = await res.json();
-        set({ organization: data, isLoaded: true });
+        set({ organization: data, currentOrgId: orgId, isLoaded: true });
       }
     } catch {
       // Fall back to mock data on error

@@ -3,29 +3,34 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppStore } from "@/stores/app-store";
+import { useOrgId } from "@/hooks/useOrgId";
 import { formatCurrency, cn } from "@/lib/utils";
 
-const navLinks = [
-  { href: "/", label: "Map" },
-  { href: "/graph", label: "Graph" },
-  { href: "/agents", label: "Agents" },
-  { href: "/departments", label: "Departments" },
-  { href: "/cost", label: "Cost" },
-  { href: "/skills", label: "Skills" },
+const navSuffixes = [
+  { suffix: "", label: "Map" },
+  { suffix: "/graph", label: "Graph" },
+  { suffix: "/agents", label: "Agents" },
+  { suffix: "/departments", label: "Departments" },
+  { suffix: "/cost", label: "Cost" },
+  { suffix: "/skills", label: "Skills" },
 ] as const;
 
 export function TopBar() {
+  const orgId = useOrgId();
   const organization = useAppStore((s) => s.organization);
   const getTotalMonthlyCost = useAppStore((s) => s.getTotalMonthlyCost);
   const pathname = usePathname();
+  const orgBase = `/org/${orgId}`;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between bg-slate-900 px-4 text-white">
       <div className="flex items-center gap-2">
-        <span className="text-xl" role="img" aria-label="factory">
-          🏘️
-        </span>
-        <span className="text-lg font-bold">AgentFloor</span>
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80">
+          <span className="text-xl" role="img" aria-label="factory">
+            🏘️
+          </span>
+          <span className="text-lg font-bold">AgentFloor</span>
+        </Link>
       </div>
 
       <div className="text-sm font-medium text-slate-300">
@@ -37,15 +42,16 @@ export function TopBar() {
           {formatCurrency(getTotalMonthlyCost())}/mo
         </span>
         <nav className="flex items-center gap-1">
-          {navLinks.map((link) => {
+          {navSuffixes.map((link) => {
+            const href = `${orgBase}${link.suffix}`;
             const isActive =
-              link.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(link.href);
+              link.suffix === ""
+                ? pathname === orgBase
+                : pathname.startsWith(`${orgBase}${link.suffix}`);
             return (
               <Link
-                key={link.href}
-                href={link.href}
+                key={link.suffix}
+                href={href}
                 className={cn(
                   "rounded px-3 py-1 text-sm transition-colors",
                   isActive

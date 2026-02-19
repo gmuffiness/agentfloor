@@ -47,8 +47,11 @@ export function GraphPage() {
   const selectAgent = useAppStore((s) => s.selectAgent);
   const selectDepartment = useAppStore((s) => s.selectDepartment);
 
+  const currentOrgId = useAppStore((s) => s.currentOrgId);
+
   useEffect(() => {
-    fetch("/api/graph")
+    if (!currentOrgId) return;
+    fetch(`/api/organizations/${currentOrgId}/graph`)
       .then((res) => res.json())
       .then((data: { nodes: Node[]; edges: Edge[] }) => {
         setNodes(data.nodes);
@@ -60,7 +63,7 @@ export function GraphPage() {
           })),
         );
       });
-  }, [setNodes, setEdges]);
+  }, [currentOrgId, setNodes, setEdges]);
 
   // Filter nodes/edges based on toggle state
   const hiddenTypes = useMemo(() => {

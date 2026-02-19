@@ -9,11 +9,13 @@
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:seed": "npx tsx src/db/seed.ts",
-    "agent-hub-setup": "npx tsx src/cli/agent-hub-setup.ts"
+    "agent-hub-setup": "npx tsx src/cli/agent-hub-setup.ts",
+    "install-plugin": "node scripts/install-to-project.mjs"
   },
   "dependencies": {
     "@faker-js/faker": "^10.3.0",
     "@pixi/react": "^8.0.5",
+    "@supabase/supabase-js": "^2.97.0",
     "@xyflow/react": "^12.10.0",
     "better-sqlite3": "^12.6.2",
     "drizzle-orm": "^0.45.1",
@@ -30,6 +32,7 @@
       "better-sqlite3",
       "esbuild",
       "sharp",
+      "supabase",
       "unrs-resolver"
     ]
   },
@@ -42,6 +45,7 @@
     "drizzle-kit": "^0.31.9",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "supabase": "^2.76.10",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"

@@ -1,4 +1,4 @@
-import type { Organization, Skill, Plugin, McpTool, DailyUsage, MonthlyCost } from "@/types";
+import type { Organization, Skill, Plugin, McpTool, AgentResource, DailyUsage, MonthlyCost } from "@/types";
 
 // ── Skills ──────────────────────────────────────────────────────────────────
 const skills: Record<string, Skill> = {
@@ -258,6 +258,65 @@ const mcpTools: Record<string, McpTool> = {
   },
 };
 
+// ── Resources ─────────────────────────────────────────────────────────────
+const resources: Record<string, AgentResource> = {
+  backendRepo: {
+    id: "res-1", type: "git_repo", name: "backend-api",
+    icon: "📦", description: "Core backend API monorepo",
+    url: "https://github.com/acme/backend-api", accessLevel: "write", createdAt: "2025-11-01T00:00:00Z",
+  },
+  frontendRepo: {
+    id: "res-2", type: "git_repo", name: "web-app",
+    icon: "📦", description: "Main frontend web application",
+    url: "https://github.com/acme/web-app", accessLevel: "write", createdAt: "2025-09-15T00:00:00Z",
+  },
+  infraRepo: {
+    id: "res-3", type: "git_repo", name: "infra-config",
+    icon: "📦", description: "Infrastructure as Code repository",
+    url: "https://github.com/acme/infra-config", accessLevel: "admin", createdAt: "2025-08-01T00:00:00Z",
+  },
+  dataRepo: {
+    id: "res-4", type: "git_repo", name: "data-pipelines",
+    icon: "📦", description: "ETL pipelines and data processing",
+    url: "https://github.com/acme/data-pipelines", accessLevel: "write", createdAt: "2025-10-01T00:00:00Z",
+  },
+  securityRepo: {
+    id: "res-5", type: "git_repo", name: "security-policies",
+    icon: "📦", description: "Security policies and scanning configs",
+    url: "https://github.com/acme/security-policies", accessLevel: "read", createdAt: "2025-09-01T00:00:00Z",
+  },
+  mainDb: {
+    id: "res-6", type: "database", name: "acme-prod-db",
+    icon: "🐘", description: "Primary PostgreSQL production database",
+    url: "postgresql://prod.acme.internal:5432/main", accessLevel: "read", createdAt: "2025-11-01T00:00:00Z",
+  },
+  stagingDb: {
+    id: "res-7", type: "database", name: "acme-staging-db",
+    icon: "🐘", description: "PostgreSQL staging database",
+    url: "postgresql://staging.acme.internal:5432/main", accessLevel: "write", createdAt: "2025-11-01T00:00:00Z",
+  },
+  analyticsDb: {
+    id: "res-8", type: "database", name: "analytics-warehouse",
+    icon: "🔎", description: "BigQuery analytics data warehouse",
+    url: "bigquery://acme-corp/analytics", accessLevel: "admin", createdAt: "2025-10-01T00:00:00Z",
+  },
+  s3Assets: {
+    id: "res-9", type: "storage", name: "acme-assets",
+    icon: "☁️", description: "S3 bucket for static assets and uploads",
+    url: "s3://acme-assets-prod", accessLevel: "write", createdAt: "2025-09-15T00:00:00Z",
+  },
+  s3Backups: {
+    id: "res-10", type: "storage", name: "acme-backups",
+    icon: "☁️", description: "S3 bucket for database backups",
+    url: "s3://acme-db-backups", accessLevel: "read", createdAt: "2025-08-01T00:00:00Z",
+  },
+  s3DataLake: {
+    id: "res-11", type: "storage", name: "data-lake",
+    icon: "☁️", description: "S3 data lake for raw and processed data",
+    url: "s3://acme-data-lake", accessLevel: "write", createdAt: "2025-10-01T00:00:00Z",
+  },
+};
+
 // ── Usage history helper (7 days, deterministic) ─────────────────────────
 function makeDailyUsage(baseTokens: number, baseCost: number, baseRequests: number): DailyUsage[] {
   const dates = [
@@ -324,6 +383,7 @@ export const mockOrganization: Organization = {
           skills: [skills.codeGen, skills.codeReview, skills.debugging, skills.apiDesign],
           plugins: [plugins.eslint, plugins.prettier, plugins.jest, plugins.docker],
           mcpTools: [mcpTools.filesystem, mcpTools.postgres, mcpTools.github, mcpTools.redis, mcpTools.linear],
+          resources: [resources.backendRepo, resources.mainDb, resources.stagingDb],
           usageHistory: makeDailyUsage(350000, 52, 180),
           lastActive: "2026-02-18T09:34:00Z",
           createdAt: "2025-11-01T00:00:00Z",
@@ -341,6 +401,7 @@ export const mockOrganization: Organization = {
           skills: [skills.codeGen, skills.testing, skills.apiDesign],
           plugins: [plugins.eslint, plugins.jest, plugins.githubActions],
           mcpTools: [mcpTools.filesystem, mcpTools.github, mcpTools.postgres],
+          resources: [resources.backendRepo, resources.stagingDb],
           usageHistory: makeDailyUsage(260000, 41, 150),
           lastActive: "2026-02-18T08:15:00Z",
           createdAt: "2025-12-15T00:00:00Z",
@@ -358,6 +419,7 @@ export const mockOrganization: Organization = {
           skills: [skills.debugging, skills.testing, skills.codeReview],
           plugins: [plugins.sentry, plugins.jest, plugins.datadog],
           mcpTools: [mcpTools.filesystem, mcpTools.postgres, mcpTools.slack, mcpTools.redis],
+          resources: [resources.backendRepo, resources.mainDb],
           usageHistory: makeDailyUsage(220000, 37, 120),
           lastActive: "2026-02-17T22:45:00Z",
           createdAt: "2025-10-20T00:00:00Z",
@@ -388,6 +450,7 @@ export const mockOrganization: Organization = {
           skills: [skills.codeGen, skills.codeReview, skills.documentation],
           plugins: [plugins.eslint, plugins.prettier, plugins.storybook],
           mcpTools: [mcpTools.filesystem, mcpTools.github, mcpTools.browser, mcpTools.notion],
+          resources: [resources.frontendRepo, resources.s3Assets],
           usageHistory: makeDailyUsage(290000, 44, 160),
           lastActive: "2026-02-18T10:02:00Z",
           createdAt: "2025-09-15T00:00:00Z",
@@ -405,6 +468,7 @@ export const mockOrganization: Organization = {
           skills: [skills.codeGen, skills.testing, skills.refactoring],
           plugins: [plugins.eslint, plugins.prettier, plugins.jest],
           mcpTools: [mcpTools.filesystem, mcpTools.github, mcpTools.browser],
+          resources: [resources.frontendRepo],
           usageHistory: makeDailyUsage(230000, 38, 130),
           lastActive: "2026-02-18T09:50:00Z",
           createdAt: "2025-11-20T00:00:00Z",
@@ -435,6 +499,7 @@ export const mockOrganization: Organization = {
           skills: [skills.dataAnalysis, skills.codeGen, skills.documentation],
           plugins: [plugins.datadog],
           mcpTools: [mcpTools.filesystem, mcpTools.bigquery, mcpTools.postgres, mcpTools.notion],
+          resources: [resources.dataRepo, resources.analyticsDb, resources.s3DataLake],
           usageHistory: makeDailyUsage(300000, 42, 170),
           lastActive: "2026-02-18T10:10:00Z",
           createdAt: "2025-10-01T00:00:00Z",
@@ -452,6 +517,7 @@ export const mockOrganization: Organization = {
           skills: [skills.dataAnalysis, skills.deployment],
           plugins: [plugins.docker, plugins.githubActions, plugins.terraform],
           mcpTools: [mcpTools.filesystem, mcpTools.bigquery, mcpTools.aws, mcpTools.kubernetes],
+          resources: [resources.dataRepo, resources.analyticsDb, resources.s3DataLake, resources.s3Backups],
           usageHistory: makeDailyUsage(240000, 35, 140),
           lastActive: "2026-02-18T07:30:00Z",
           createdAt: "2025-11-10T00:00:00Z",
@@ -469,6 +535,7 @@ export const mockOrganization: Organization = {
           skills: [skills.testing, skills.dataAnalysis, skills.debugging],
           plugins: [plugins.sentry, plugins.jest],
           mcpTools: [mcpTools.filesystem, mcpTools.postgres, mcpTools.bigquery, mcpTools.slack],
+          resources: [resources.dataRepo, resources.analyticsDb, resources.mainDb],
           usageHistory: makeDailyUsage(200000, 34, 110),
           lastActive: "2026-02-17T16:20:00Z",
           createdAt: "2025-12-05T00:00:00Z",
@@ -499,6 +566,7 @@ export const mockOrganization: Organization = {
           skills: [skills.deployment, skills.debugging, skills.documentation],
           plugins: [plugins.docker, plugins.terraform, plugins.githubActions, plugins.sentry, plugins.datadog],
           mcpTools: [mcpTools.filesystem, mcpTools.github, mcpTools.kubernetes, mcpTools.aws, mcpTools.slack],
+          resources: [resources.infraRepo, resources.mainDb, resources.s3Backups, resources.s3Assets],
           usageHistory: makeDailyUsage(270000, 38, 145),
           lastActive: "2026-02-18T10:15:00Z",
           createdAt: "2025-08-01T00:00:00Z",
@@ -529,6 +597,7 @@ export const mockOrganization: Organization = {
           skills: [skills.securityScan, skills.codeReview, skills.debugging],
           plugins: [plugins.sonarqube, plugins.sentry, plugins.githubActions],
           mcpTools: [mcpTools.filesystem, mcpTools.github, mcpTools.slack, mcpTools.jira],
+          resources: [resources.securityRepo, resources.backendRepo, resources.frontendRepo],
           usageHistory: makeDailyUsage(190000, 33, 100),
           lastActive: "2026-02-18T09:00:00Z",
           createdAt: "2025-09-01T00:00:00Z",
@@ -546,6 +615,7 @@ export const mockOrganization: Organization = {
           skills: [skills.securityScan, skills.documentation, skills.codeReview],
           plugins: [plugins.sonarqube],
           mcpTools: [mcpTools.filesystem, mcpTools.github, mcpTools.notion, mcpTools.jira],
+          resources: [resources.securityRepo, resources.infraRepo],
           usageHistory: makeDailyUsage(160000, 26, 85),
           lastActive: "2026-02-17T18:00:00Z",
           createdAt: "2025-10-15T00:00:00Z",

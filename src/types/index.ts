@@ -1,5 +1,7 @@
 export type Vendor = "anthropic" | "openai" | "google";
 export type AgentStatus = "active" | "idle" | "error";
+export type ResourceType = "git_repo" | "database" | "storage";
+export type AccessLevel = "read" | "write" | "admin";
 export type SkillCategory = "generation" | "review" | "testing" | "documentation" | "debugging" | "deployment";
 
 export interface Skill {
@@ -28,6 +30,17 @@ export interface McpTool {
   category: "filesystem" | "database" | "api" | "browser" | "communication" | "devtools";
 }
 
+export interface AgentResource {
+  id: string;
+  type: ResourceType;
+  name: string;
+  icon: string;
+  description: string;
+  url: string;
+  accessLevel: AccessLevel;
+  createdAt: string;
+}
+
 export interface DailyUsage {
   date: string;
   tokens: number;
@@ -54,6 +67,7 @@ export interface Agent {
   skills: Skill[];
   plugins: Plugin[];
   mcpTools: McpTool[];
+  resources: AgentResource[];
   usageHistory: DailyUsage[];
   lastActive: string;
   createdAt: string;
@@ -75,5 +89,19 @@ export interface Organization {
   id: string;
   name: string;
   totalBudget: number;
+  inviteCode?: string;
+  createdBy?: string;
   departments: Department[];
+}
+
+export type OrgMemberRole = "admin" | "member";
+export type OrgMemberStatus = "active" | "pending";
+
+export interface OrgMember {
+  id: string;
+  orgId: string;
+  name: string;
+  role: OrgMemberRole;
+  status: OrgMemberStatus;
+  joinedAt: string;
 }

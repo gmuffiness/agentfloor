@@ -1,0 +1,15 @@
+{
+  "name": "agentfloor",
+  "version": "0.1.0",
+  "description": "Connect Claude Code agents to AgentFloor monitoring hub",
+  "author": "AgentFloor",
+  "homepage": "https://github.com/your-org/agentfloor",
+  "skills": [
+    {
+      "name": "setup",
+      "path": "skills/setup/SKILL.md",
+      "description": "Set up AgentFloor connection - create/join organization and register agent"
+    }
+  ],
+  "hooks": "hooks/hooks.json"
+}

@@ -110,6 +110,18 @@ sqlite.exec(`
     cost REAL NOT NULL DEFAULT 0,
     requests INTEGER NOT NULL DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS agent_resources (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('git_repo', 'database', 'storage')),
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    access_level TEXT NOT NULL DEFAULT 'read' CHECK (access_level IN ('read', 'write', 'admin')),
+    created_at TEXT NOT NULL
+  );
 `);
 
 // ── Seed data (from mock-data.ts) ───────────────────────────────────────────
@@ -201,6 +213,22 @@ function addMcp(agentId: string, name: string, server: string, icon: string, des
   }).run();
 }
 
+let resCounter = 0;
+function addResource(agentId: string, type: string, name: string, icon: string, desc: string, url: string, accessLevel: string) {
+  resCounter++;
+  db.insert(schema.agentResources).values({
+    id: `res-${resCounter}`,
+    agentId,
+    type,
+    name,
+    icon,
+    description: desc,
+    url,
+    accessLevel,
+    createdAt: "2025-11-01T00:00:00Z",
+  }).run();
+}
+
 function addSkills(agentId: string, skillIds: string[]) {
   for (const skillId of skillIds) {
     db.insert(schema.agentSkills).values({ agentId, skillId }).run();
@@ -239,6 +267,9 @@ addMcp("agent-1", "GitHub", "mcp-server-github", "🐙", "Manage repos, PRs, iss
 addMcp("agent-1", "Redis", "mcp-server-redis", "🔴", "Manage Redis cache and data structures", "database");
 addMcp("agent-1", "Linear", "mcp-server-linear", "📋", "Manage Linear issues, projects, and sprints", "api");
 makeDailyUsage("agent-1", 350000, 52, 180);
+addResource("agent-1", "git_repo", "backend-api", "📦", "Core backend API monorepo", "https://github.com/acme/backend-api", "write");
+addResource("agent-1", "database", "acme-prod-db", "🐘", "Primary PostgreSQL production database", "postgresql://prod.acme.internal:5432/main", "read");
+addResource("agent-1", "database", "acme-staging-db", "🐘", "PostgreSQL staging database", "postgresql://staging.acme.internal:5432/main", "write");
 
 // Agent: GPT API Builder
 db.insert(schema.agents).values({
@@ -256,6 +287,8 @@ addMcp("agent-2", "Filesystem", "mcp-server-filesystem", "📁", "Read, write, a
 addMcp("agent-2", "GitHub", "mcp-server-github", "🐙", "Manage repos, PRs, issues, and code reviews", "api");
 addMcp("agent-2", "PostgreSQL", "mcp-server-postgres", "🐘", "Query and manage PostgreSQL databases", "database");
 makeDailyUsage("agent-2", 260000, 41, 150);
+addResource("agent-2", "git_repo", "backend-api", "📦", "Core backend API monorepo", "https://github.com/acme/backend-api", "write");
+addResource("agent-2", "database", "acme-staging-db", "🐘", "PostgreSQL staging database", "postgresql://staging.acme.internal:5432/main", "write");
 
 // Agent: Claude Debugger
 db.insert(schema.agents).values({
@@ -274,6 +307,8 @@ addMcp("agent-3", "PostgreSQL", "mcp-server-postgres", "🐘", "Query and manage
 addMcp("agent-3", "Slack", "mcp-server-slack", "💬", "Send messages and manage Slack channels", "communication");
 addMcp("agent-3", "Redis", "mcp-server-redis", "🔴", "Manage Redis cache and data structures", "database");
 makeDailyUsage("agent-3", 220000, 37, 120);
+addResource("agent-3", "git_repo", "backend-api", "📦", "Core backend API monorepo", "https://github.com/acme/backend-api", "read");
+addResource("agent-3", "database", "acme-prod-db", "🐘", "Primary PostgreSQL production database", "postgresql://prod.acme.internal:5432/main", "read");
 
 // Frontend Team
 db.insert(schema.departments).values({
@@ -303,6 +338,8 @@ addMcp("agent-4", "GitHub", "mcp-server-github", "🐙", "Manage repos, PRs, iss
 addMcp("agent-4", "Puppeteer", "mcp-server-puppeteer", "🌐", "Browser automation, screenshots, and web scraping", "browser");
 addMcp("agent-4", "Notion", "mcp-server-notion", "📓", "Read and update Notion pages and databases", "api");
 makeDailyUsage("agent-4", 290000, 44, 160);
+addResource("agent-4", "git_repo", "web-app", "📦", "Main frontend web application", "https://github.com/acme/web-app", "write");
+addResource("agent-4", "storage", "acme-assets", "☁️", "S3 bucket for static assets and uploads", "s3://acme-assets-prod", "write");
 
 // Agent: Claude Frontend
 db.insert(schema.agents).values({
@@ -320,6 +357,7 @@ addMcp("agent-5", "Filesystem", "mcp-server-filesystem", "📁", "Read, write, a
 addMcp("agent-5", "GitHub", "mcp-server-github", "🐙", "Manage repos, PRs, issues, and code reviews", "api");
 addMcp("agent-5", "Puppeteer", "mcp-server-puppeteer", "🌐", "Browser automation, screenshots, and web scraping", "browser");
 makeDailyUsage("agent-5", 230000, 38, 130);
+addResource("agent-5", "git_repo", "web-app", "📦", "Main frontend web application", "https://github.com/acme/web-app", "write");
 
 // Data Team
 db.insert(schema.departments).values({
@@ -347,6 +385,9 @@ addMcp("agent-6", "BigQuery", "mcp-server-bigquery", "🔎", "Query and manage G
 addMcp("agent-6", "PostgreSQL", "mcp-server-postgres", "🐘", "Query and manage PostgreSQL databases", "database");
 addMcp("agent-6", "Notion", "mcp-server-notion", "📓", "Read and update Notion pages and databases", "api");
 makeDailyUsage("agent-6", 300000, 42, 170);
+addResource("agent-6", "git_repo", "data-pipelines", "📦", "ETL pipelines and data processing", "https://github.com/acme/data-pipelines", "write");
+addResource("agent-6", "database", "analytics-warehouse", "🔎", "BigQuery analytics data warehouse", "bigquery://acme-corp/analytics", "admin");
+addResource("agent-6", "storage", "data-lake", "☁️", "S3 data lake for raw and processed data", "s3://acme-data-lake", "write");
 
 // Agent: Gemini Pipeline
 db.insert(schema.agents).values({
@@ -365,6 +406,10 @@ addMcp("agent-7", "BigQuery", "mcp-server-bigquery", "🔎", "Query and manage G
 addMcp("agent-7", "AWS", "mcp-server-aws", "☁️", "Manage AWS services (S3, Lambda, EC2, etc.)", "api");
 addMcp("agent-7", "Kubernetes", "mcp-server-kubernetes", "☸️", "Manage K8s clusters, pods, and deployments", "devtools");
 makeDailyUsage("agent-7", 240000, 35, 140);
+addResource("agent-7", "git_repo", "data-pipelines", "📦", "ETL pipelines and data processing", "https://github.com/acme/data-pipelines", "write");
+addResource("agent-7", "database", "analytics-warehouse", "🔎", "BigQuery analytics data warehouse", "bigquery://acme-corp/analytics", "admin");
+addResource("agent-7", "storage", "data-lake", "☁️", "S3 data lake for raw and processed data", "s3://acme-data-lake", "write");
+addResource("agent-7", "storage", "acme-backups", "☁️", "S3 bucket for database backups", "s3://acme-db-backups", "read");
 
 // Agent: Claude Data QA
 db.insert(schema.agents).values({
@@ -382,6 +427,9 @@ addMcp("agent-8", "PostgreSQL", "mcp-server-postgres", "🐘", "Query and manage
 addMcp("agent-8", "BigQuery", "mcp-server-bigquery", "🔎", "Query and manage Google BigQuery datasets", "database");
 addMcp("agent-8", "Slack", "mcp-server-slack", "💬", "Send messages and manage Slack channels", "communication");
 makeDailyUsage("agent-8", 200000, 34, 110);
+addResource("agent-8", "git_repo", "data-pipelines", "📦", "ETL pipelines and data processing", "https://github.com/acme/data-pipelines", "read");
+addResource("agent-8", "database", "analytics-warehouse", "🔎", "BigQuery analytics data warehouse", "bigquery://acme-corp/analytics", "read");
+addResource("agent-8", "database", "acme-prod-db", "🐘", "Primary PostgreSQL production database", "postgresql://prod.acme.internal:5432/main", "read");
 
 // DevOps Team
 db.insert(schema.departments).values({
@@ -414,6 +462,10 @@ addMcp("agent-9", "Kubernetes", "mcp-server-kubernetes", "☸️", "Manage K8s c
 addMcp("agent-9", "AWS", "mcp-server-aws", "☁️", "Manage AWS services (S3, Lambda, EC2, etc.)", "api");
 addMcp("agent-9", "Slack", "mcp-server-slack", "💬", "Send messages and manage Slack channels", "communication");
 makeDailyUsage("agent-9", 270000, 38, 145);
+addResource("agent-9", "git_repo", "infra-config", "📦", "Infrastructure as Code repository", "https://github.com/acme/infra-config", "admin");
+addResource("agent-9", "database", "acme-prod-db", "🐘", "Primary PostgreSQL production database", "postgresql://prod.acme.internal:5432/main", "read");
+addResource("agent-9", "storage", "acme-backups", "☁️", "S3 bucket for database backups", "s3://acme-db-backups", "read");
+addResource("agent-9", "storage", "acme-assets", "☁️", "S3 bucket for static assets and uploads", "s3://acme-assets-prod", "write");
 
 // Security Team
 db.insert(schema.departments).values({
@@ -443,6 +495,9 @@ addMcp("agent-10", "GitHub", "mcp-server-github", "🐙", "Manage repos, PRs, is
 addMcp("agent-10", "Slack", "mcp-server-slack", "💬", "Send messages and manage Slack channels", "communication");
 addMcp("agent-10", "Jira", "mcp-server-jira", "🎫", "Manage Jira tickets, sprints, and boards", "api");
 makeDailyUsage("agent-10", 190000, 33, 100);
+addResource("agent-10", "git_repo", "security-policies", "📦", "Security policies and scanning configs", "https://github.com/acme/security-policies", "write");
+addResource("agent-10", "git_repo", "backend-api", "📦", "Core backend API monorepo", "https://github.com/acme/backend-api", "read");
+addResource("agent-10", "git_repo", "web-app", "📦", "Main frontend web application", "https://github.com/acme/web-app", "read");
 
 // Agent: Claude Auditor
 db.insert(schema.agents).values({
@@ -459,6 +514,8 @@ addMcp("agent-11", "GitHub", "mcp-server-github", "🐙", "Manage repos, PRs, is
 addMcp("agent-11", "Notion", "mcp-server-notion", "📓", "Read and update Notion pages and databases", "api");
 addMcp("agent-11", "Jira", "mcp-server-jira", "🎫", "Manage Jira tickets, sprints, and boards", "api");
 makeDailyUsage("agent-11", 160000, 26, 85);
+addResource("agent-11", "git_repo", "security-policies", "📦", "Security policies and scanning configs", "https://github.com/acme/security-policies", "write");
+addResource("agent-11", "git_repo", "infra-config", "📦", "Infrastructure as Code repository", "https://github.com/acme/infra-config", "read");
 
 console.log("Database seeded successfully!");
 console.log(`  - 1 organization`);
@@ -467,6 +524,7 @@ console.log(`  - 11 agents`);
 console.log(`  - 10 skills`);
 console.log(`  - ${pluginCounter} plugin assignments`);
 console.log(`  - ${mcpCounter} MCP tool assignments`);
+console.log(`  - ${resCounter} resource assignments`);
 console.log(`  - 30 cost history records`);
 console.log(`  - 77 usage history records`);
 

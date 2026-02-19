@@ -1,7 +1,18 @@
 import { Container, Graphics, Text } from "pixi.js";
 import type { Department } from "@/types";
-import { getVendorBgColor, getVendorColor, getVendorLabel, formatCurrency } from "@/lib/utils";
+import { getVendorColor, getVendorLabel, formatCurrency } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
+
+function hexToNum(hex: string): number {
+  return parseInt(hex.replace("#", ""), 16);
+}
+
+function darken(color: number, factor: number): number {
+  const r = Math.floor(((color >> 16) & 0xff) * factor);
+  const g = Math.floor(((color >> 8) & 0xff) * factor);
+  const b = Math.floor((color & 0xff) * factor);
+  return (r << 16) | (g << 8) | b;
+}
 
 export function createDepartmentRoom(
   department: Department,
@@ -14,185 +25,256 @@ export function createDepartmentRoom(
 
   const overBudget = department.monthlySpend > department.budget;
   const vendorColor = getVendorColor(department.primaryVendor);
-  const borderColor = overBudget ? "#EF4444" : vendorColor;
-  const borderHex = overBudget ? 0xEF4444 : parseInt(vendorColor.replace("#", ""), 16);
+  const vendorHex = hexToNum(vendorColor);
+  const wallColor = overBudget ? 0xB85450 : 0x8B7355;
+  const wallDark = darken(wallColor, 0.7);
+  const roofColor = overBudget ? 0xC44040 : vendorHex;
 
-  // === Outer wall (thick border for 3D game effect) ===
-  const outerWall = new Graphics();
-  outerWall.roundRect(0, 0, width, height, 10);
-  outerWall.fill({ color: borderHex, alpha: overBudget ? 0.5 : 0.35 });
-  container.addChild(outerWall);
+  const g = new Graphics();
 
-  // Wall shadow (bottom-right 3D effect)
-  const wallShadow = new Graphics();
-  wallShadow.roundRect(4, 4, width, height, 10);
-  wallShadow.fill({ color: 0x000000, alpha: 0.12 });
-  container.addChildAt(wallShadow, 0);
+  // === Building shadow ===
+  g.roundRect(5, 5, width, height, 4);
+  g.fill({ color: 0x000000, alpha: 0.15 });
 
-  // === Floor (inside room) ===
-  const floorInset = 5;
-  const floorX = floorInset;
-  const floorY = floorInset;
-  const floorW = width - floorInset * 2;
-  const floorH = height - floorInset * 2;
+  // === Stone/wood wall base ===
+  g.roundRect(0, 0, width, height, 4);
+  g.fill({ color: wallColor });
+  // Inner lighter floor
+  g.roundRect(4, 4, width - 8, height - 8, 2);
+  g.fill({ color: 0xF5E6D0 });
 
-  const floor = new Graphics();
-  floor.roundRect(floorX, floorY, floorW, floorH, 6);
-  floor.fill({ color: 0xF8FAFC });
-  container.addChild(floor);
+  // === Floor tile pattern (warm wooden planks style) ===
+  const floorX = 4;
+  const floorY = 4;
+  const floorW = width - 8;
+  const floorH = height - 8;
 
-  // === Tile grid pattern on floor ===
-  const tileSize = 24;
-  const tileGraphics = new Graphics();
-  for (let tx = floorX; tx < floorX + floorW; tx += tileSize) {
-    for (let ty = floorY; ty < floorY + floorH; ty += tileSize) {
-      const tw = Math.min(tileSize, floorX + floorW - tx);
-      const th = Math.min(tileSize, floorY + floorH - ty);
-      tileGraphics.rect(tx, ty, tw, th);
-      tileGraphics.stroke({ color: borderHex, width: 0.5, alpha: 0.12 });
-    }
+  const plankH = 12;
+  const floorTiles = new Graphics();
+  for (let py = floorY; py < floorY + floorH; py += plankH) {
+    const ph = Math.min(plankH, floorY + floorH - py);
+    const isAlt = Math.floor((py - floorY) / plankH) % 2 === 0;
+    floorTiles.rect(floorX, py, floorW, ph);
+    floorTiles.fill({ color: isAlt ? 0xEBD9BF : 0xF5E6D0 });
+    // Plank line
+    floorTiles.rect(floorX, py + ph - 1, floorW, 1);
+    floorTiles.fill({ color: 0xD4C4A8, alpha: 0.4 });
   }
-  // Vendor-tinted alternate tiles (checkerboard style)
-  let altRow = false;
-  for (let tx = floorX; tx < floorX + floorW; tx += tileSize) {
-    altRow = !altRow;
-    let altCol = altRow;
-    for (let ty = floorY; ty < floorY + floorH; ty += tileSize) {
-      altCol = !altCol;
-      if (altCol) {
-        const tw = Math.min(tileSize, floorX + floorW - tx);
-        const th = Math.min(tileSize, floorY + floorH - ty);
-        tileGraphics.roundRect(tx + 1, ty + 1, tw - 2, th - 2, 1);
-        tileGraphics.fill({ color: borderHex, alpha: 0.04 });
-      }
-    }
+  container.addChild(floorTiles);
+
+  // === Wall border (stone/brick pattern) ===
+  const wallBorder = new Graphics();
+  // Top wall
+  wallBorder.rect(0, 0, width, 4);
+  wallBorder.fill({ color: wallColor });
+  // Bottom wall
+  wallBorder.rect(0, height - 4, width, 4);
+  wallBorder.fill({ color: wallColor });
+  // Left wall
+  wallBorder.rect(0, 0, 4, height);
+  wallBorder.fill({ color: wallColor });
+  // Right wall
+  wallBorder.rect(width - 4, 0, 4, height);
+  wallBorder.fill({ color: wallColor });
+
+  // Wall highlights (top-left lighter, bottom-right darker)
+  wallBorder.rect(0, 0, width, 1);
+  wallBorder.fill({ color: 0xFFFFFF, alpha: 0.15 });
+  wallBorder.rect(0, 0, 1, height);
+  wallBorder.fill({ color: 0xFFFFFF, alpha: 0.15 });
+  wallBorder.rect(0, height - 1, width, 1);
+  wallBorder.fill({ color: 0x000000, alpha: 0.15 });
+  wallBorder.rect(width - 1, 0, 1, height);
+  wallBorder.fill({ color: 0x000000, alpha: 0.15 });
+  container.addChild(wallBorder);
+
+  // === Roof (triangular / sloped look at top) ===
+  const roofH = 14;
+  const roof = new Graphics();
+  // Main roof body
+  roof.roundRect(-3, -roofH, width + 6, roofH + 2, 2);
+  roof.fill({ color: roofColor });
+  // Roof ridge (top highlight)
+  roof.rect(-1, -roofH, width + 2, 2);
+  roof.fill({ color: darken(roofColor, 1.2) > 0xffffff ? roofColor : darken(roofColor, 1.2) });
+  // Roof shadow at bottom
+  roof.rect(0, -2, width, 3);
+  roof.fill({ color: 0x000000, alpha: 0.12 });
+  // Roof shingle lines
+  for (let ry = -roofH + 4; ry < -1; ry += 4) {
+    roof.rect(-2, ry, width + 4, 1);
+    roof.fill({ color: 0x000000, alpha: 0.08 });
   }
-  container.addChild(tileGraphics);
+  container.addChild(roof);
 
-  // === Room sign / header (like a sign above the room entrance) ===
-  const headerH = 32;
-  const headerBg = new Graphics();
-  headerBg.roundRect(floorX, floorY, floorW, headerH, 6);
-  headerBg.fill({ color: borderHex, alpha: overBudget ? 0.2 : 0.12 });
-  container.addChild(headerBg);
+  // === Building sign (hanging from roof) ===
+  const signW = Math.min(width * 0.7, 180);
+  const signH = 22;
+  const signX = (width - signW) / 2;
+  const signY = 8;
 
-  // Header divider line
-  const divider = new Graphics();
-  divider.rect(floorX + 4, floorY + headerH - 1, floorW - 8, 1);
-  divider.fill({ color: borderHex, alpha: 0.2 });
-  container.addChild(divider);
+  const sign = new Graphics();
+  // Sign background (wood plank)
+  sign.roundRect(signX, signY, signW, signH, 3);
+  sign.fill({ color: 0x5C4033 });
+  // Sign border
+  sign.roundRect(signX, signY, signW, signH, 3);
+  sign.stroke({ color: 0x3B2716, width: 1.5 });
+  // Sign hanging hooks
+  sign.circle(signX + 10, signY - 2, 2);
+  sign.fill({ color: 0x8B6914 });
+  sign.circle(signX + signW - 10, signY - 2, 2);
+  sign.fill({ color: 0x8B6914 });
+  container.addChild(sign);
 
-  // Department name (sign style)
+  // Department name on sign
   const nameText = new Text({
-    text: `🏢 ${department.name}`,
+    text: department.name,
     style: {
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 12,
+      fontFamily: "monospace",
+      fontSize: 11,
       fontWeight: "700",
-      fill: "#1E293B",
+      fill: "#F5E6D0",
+      letterSpacing: 0.5,
     },
   });
-  nameText.x = floorX + 8;
-  nameText.y = floorY + 8;
+  nameText.anchor.set(0.5, 0.5);
+  nameText.x = width / 2;
+  nameText.y = signY + signH / 2;
   container.addChild(nameText);
 
-  // Vendor badge
-  const vendorBadge = new Text({
-    text: getVendorLabel(department.primaryVendor),
-    style: {
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 9,
-      fontWeight: "700",
-      fill: vendorColor,
-    },
-  });
-  vendorBadge.x = floorX + floorW - vendorBadge.width - 8;
-  vendorBadge.y = floorY + 11;
-  container.addChild(vendorBadge);
+  // === Door entrance (bottom center) ===
+  const doorW = 18;
+  const doorH = 20;
+  const doorX = Math.floor(width / 2) - Math.floor(doorW / 2);
+  const doorY = height - 4 - doorH;
 
-  // === Footer stats area ===
-  const footerH = 44;
-  const footerY = floorY + floorH - footerH;
+  const door = new Graphics();
+  // Door frame
+  door.roundRect(doorX - 2, doorY - 2, doorW + 4, doorH + 6, 2);
+  door.fill({ color: wallDark });
+  // Door
+  door.roundRect(doorX, doorY, doorW, doorH + 2, 1);
+  door.fill({ color: 0x6B4226 });
+  // Door arch
+  door.ellipse(doorX + doorW / 2, doorY, doorW / 2, 5);
+  door.fill({ color: wallDark });
+  // Door handle
+  door.circle(doorX + doorW - 4, doorY + doorH / 2, 1.5);
+  door.fill({ color: 0xDAA520 });
+  // Welcome mat
+  door.roundRect(doorX - 3, height - 4, doorW + 6, 3, 1);
+  door.fill({ color: 0xCD853F, alpha: 0.6 });
+  container.addChild(door);
 
-  const footerBg = new Graphics();
-  footerBg.roundRect(floorX, footerY, floorW, footerH, 6);
-  footerBg.fill({ color: 0x000000, alpha: 0.04 });
-  container.addChild(footerBg);
+  // === Window decorations ===
+  const windowG = new Graphics();
+  const winSize = 10;
+  const winY1 = signY + signH + 12;
+  const winY2 = winY1 + winSize + 16;
 
-  // Footer divider
-  const footerDivider = new Graphics();
-  footerDivider.rect(floorX + 4, footerY, floorW - 8, 1);
-  footerDivider.fill({ color: 0x000000, alpha: 0.08 });
-  container.addChild(footerDivider);
+  // Draw a window with shutters
+  const drawWindow = (wx: number, wy: number) => {
+    // Window frame
+    windowG.roundRect(wx - 1, wy - 1, winSize + 2, winSize + 2, 1);
+    windowG.fill({ color: wallDark });
+    // Glass
+    windowG.rect(wx, wy, winSize, winSize);
+    windowG.fill({ color: 0x87CEEB, alpha: 0.7 });
+    // Cross frame
+    windowG.rect(wx + winSize / 2 - 0.5, wy, 1, winSize);
+    windowG.fill({ color: wallDark, alpha: 0.6 });
+    windowG.rect(wx, wy + winSize / 2 - 0.5, winSize, 1);
+    windowG.fill({ color: wallDark, alpha: 0.6 });
+    // Light reflection
+    windowG.rect(wx + 1, wy + 1, 3, 3);
+    windowG.fill({ color: 0xFFFFFF, alpha: 0.3 });
+  };
+
+  if (width > 150) {
+    drawWindow(floorX + 14, winY1);
+    drawWindow(floorX + floorW - winSize - 14, winY1);
+    if (floorH > 140) {
+      drawWindow(floorX + 14, winY2);
+      drawWindow(floorX + floorW - winSize - 14, winY2);
+    }
+  } else {
+    drawWindow(floorX + 10, winY1);
+    drawWindow(floorX + floorW - winSize - 10, winY1);
+  }
+  container.addChild(windowG);
+
+  // === Bottom HUD panel ===
+  const hudH = 36;
+  const hudY = floorY + floorH - hudH;
+  const hud = new Graphics();
+  hud.roundRect(floorX + 2, hudY, floorW - 4, hudH, 3);
+  hud.fill({ color: 0x1A1A2E, alpha: 0.7 });
+  // HUD top accent line
+  hud.rect(floorX + 6, hudY, floorW - 12, 2);
+  hud.fill({ color: vendorHex, alpha: 0.6 });
+  container.addChild(hud);
 
   // Agent count
   const agentCount = department.agents.length;
   const countText = new Text({
-    text: `👾 ${agentCount} agent${agentCount !== 1 ? "s" : ""}`,
-    style: {
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 9,
-      fill: "#64748B",
-    },
+    text: `${agentCount} agent${agentCount !== 1 ? "s" : ""}`,
+    style: { fontFamily: "monospace", fontSize: 8, fill: "#94A3B8" },
   });
-  countText.x = floorX + 8;
-  countText.y = footerY + 6;
+  countText.x = floorX + 10;
+  countText.y = hudY + 6;
   container.addChild(countText);
 
-  // Cost
+  // Vendor label
+  const vendorLabel = new Text({
+    text: getVendorLabel(department.primaryVendor),
+    style: { fontFamily: "monospace", fontSize: 8, fontWeight: "700", fill: vendorColor },
+  });
+  vendorLabel.anchor.set(1, 0);
+  vendorLabel.x = floorX + floorW - 10;
+  vendorLabel.y = hudY + 6;
+  container.addChild(vendorLabel);
+
+  // Cost display
   const costText = new Text({
-    text: formatCurrency(department.monthlySpend),
+    text: `${formatCurrency(department.monthlySpend)} / ${formatCurrency(department.budget)}`,
     style: {
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 14,
+      fontFamily: "monospace",
+      fontSize: 10,
       fontWeight: "700",
-      fill: overBudget ? "#EF4444" : "#1E293B",
+      fill: overBudget ? "#EF4444" : "#E2E8F0",
     },
   });
-  costText.x = floorX + 8;
-  costText.y = footerY + 20;
+  costText.x = floorX + 10;
+  costText.y = hudY + 18;
   container.addChild(costText);
 
-  const budgetText = new Text({
-    text: `/ ${formatCurrency(department.budget)}`,
-    style: {
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 9,
-      fill: "#94A3B8",
-    },
-  });
-  budgetText.x = costText.x + costText.width + 4;
-  budgetText.y = footerY + 24;
-  container.addChild(budgetText);
-
-  // === Budget bar ===
-  const barW = floorW - 16;
-  const barH = 4;
-  const barY = footerY - 8;
-
+  // Budget bar
+  const barW = floorW - 24;
+  const barH = 3;
+  const barY2 = hudY - 6;
   const barBg = new Graphics();
-  barBg.roundRect(floorX + 8, barY, barW, barH, 2);
-  barBg.fill({ color: 0x000000, alpha: 0.08 });
-  container.addChild(barBg);
+  barBg.roundRect(floorX + 12, barY2, barW, barH, 1);
+  barBg.fill({ color: 0x000000, alpha: 0.2 });
 
   const ratio = Math.min(1, department.monthlySpend / department.budget);
-  const barFill = new Graphics();
-  barFill.roundRect(floorX + 8, barY, barW * ratio, barH, 2);
-  barFill.fill({ color: overBudget ? 0xEF4444 : borderHex });
-  container.addChild(barFill);
+  barBg.roundRect(floorX + 12, barY2, barW * ratio, barH, 1);
+  barBg.fill({ color: overBudget ? 0xEF4444 : vendorHex });
+  container.addChild(barBg);
 
-  // === Vendor dots (top right of footer) ===
+  // Vendor agent dots
   const vendorCounts: Record<string, number> = { anthropic: 0, openai: 0, google: 0 };
   for (const agent of department.agents) vendorCounts[agent.vendor]++;
-  let dotX = floorX + floorW - 8;
-  const dotY = footerY + 28;
+  let dotX = floorX + floorW - 10;
+  const dotY = hudY + 22;
   for (const [vendor, count] of Object.entries(vendorCounts).reverse()) {
     if (count === 0) continue;
     for (let i = 0; i < count; i++) {
-      dotX -= 10;
+      dotX -= 9;
       const dot = new Graphics();
-      dot.circle(dotX, dotY, 4);
+      dot.circle(dotX, dotY, 3);
       dot.fill({ color: getVendorColor(vendor as "anthropic" | "openai" | "google") });
+      dot.circle(dotX, dotY, 3);
       dot.stroke({ color: 0xFFFFFF, width: 1 });
       container.addChild(dot);
     }
@@ -200,7 +282,7 @@ export function createDepartmentRoom(
 
   // === Interaction ===
   const hitArea = new Graphics();
-  hitArea.rect(0, 0, width, height);
+  hitArea.rect(0, -roofH, width, height + roofH);
   hitArea.fill({ color: 0x000000, alpha: 0 });
   hitArea.eventMode = "static";
   hitArea.cursor = "pointer";

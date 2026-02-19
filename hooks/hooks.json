@@ -1,0 +1,9 @@
+{
+  "hooks": [
+    {
+      "event": "session_start",
+      "command": "node scripts/session-start.mjs",
+      "description": "AgentFloor session start hook - checks config and sends heartbeat"
+    }
+  ]
+}

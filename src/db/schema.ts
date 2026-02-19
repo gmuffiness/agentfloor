@@ -78,6 +78,19 @@ export const mcpTools = sqliteTable("mcp_tools", {
   agentId: text("agent_id").references(() => agents.id, { onDelete: "cascade" }),
 });
 
+// ── Agent Resources ────────────────────────────────────────────────────────
+export const agentResources = sqliteTable("agent_resources", {
+  id: text("id").primaryKey(),
+  agentId: text("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  name: text("name").notNull(),
+  icon: text("icon").notNull().default(""),
+  description: text("description").notNull().default(""),
+  url: text("url").notNull().default(""),
+  accessLevel: text("access_level").notNull().default("read"),
+  createdAt: text("created_at").notNull(),
+});
+
 // ── Cost History ────────────────────────────────────────────────────────────
 export const costHistory = sqliteTable("cost_history", {
   id: text("id").primaryKey(),

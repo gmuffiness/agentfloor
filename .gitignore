@@ -48,3 +48,6 @@ next-env.d.ts
 /data/*.db-wal
 /data/*.db-shm
 /drizzle/
+
+# agentfloor local config
+.agentfloor/

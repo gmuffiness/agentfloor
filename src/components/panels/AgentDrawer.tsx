@@ -45,7 +45,7 @@ export function AgentDrawer() {
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
-    { id: "tools", label: "Skills & Tools", count: agent ? agent.skills.length + agent.plugins.length + agent.mcpTools.length : 0 },
+    { id: "tools", label: "Skills & Tools", count: agent ? agent.skills.length + agent.plugins.length + agent.mcpTools.length + (agent.resources?.length ?? 0) : 0 },
     { id: "usage", label: "Usage" },
   ];
 
@@ -201,6 +201,34 @@ export function AgentDrawer() {
                     </div>
                   </div>
 
+                  {/* Quick Resources Preview */}
+                  {agent.resources?.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                        Resources ({agent.resources.length})
+                      </h3>
+                      <div className="flex flex-wrap gap-1.5">
+                        {agent.resources.map((resource) => {
+                          const colorMap = {
+                            git_repo: { bg: "bg-purple-50", border: "border-purple-100", text: "text-purple-700" },
+                            database: { bg: "bg-amber-50", border: "border-amber-100", text: "text-amber-700" },
+                            storage: { bg: "bg-teal-50", border: "border-teal-100", text: "text-teal-700" },
+                          };
+                          const colors = colorMap[resource.type];
+                          return (
+                            <div
+                              key={resource.id}
+                              className={cn("flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs", colors.bg, colors.border)}
+                            >
+                              <span className="text-sm">{resource.icon}</span>
+                              <span className={cn("font-medium", colors.text)}>{resource.name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Quick Plugin Preview */}
                   <div>
                     <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
@@ -276,6 +304,50 @@ export function AgentDrawer() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Resources Detail */}
+                  {agent.resources?.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                        Resources
+                      </h3>
+                      <div className="space-y-2">
+                        {agent.resources.map((resource) => {
+                          const colorMap = {
+                            git_repo: { bg: "bg-purple-50/60", border: "border-purple-100", badge: "bg-purple-100 text-purple-600", label: "git" },
+                            database: { bg: "bg-amber-50/60", border: "border-amber-100", badge: "bg-amber-100 text-amber-600", label: "db" },
+                            storage: { bg: "bg-teal-50/60", border: "border-teal-100", badge: "bg-teal-100 text-teal-600", label: "storage" },
+                          };
+                          const colors = colorMap[resource.type];
+                          const accessColors = {
+                            read: "bg-gray-100 text-gray-600",
+                            write: "bg-blue-100 text-blue-600",
+                            admin: "bg-red-100 text-red-600",
+                          };
+                          return (
+                            <div key={resource.id} className={cn("flex items-start gap-3 rounded-xl p-3 border", colors.bg, colors.border)}>
+                              <span className="text-lg mt-0.5">{resource.icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-slate-900">{resource.name}</span>
+                                  <span className={cn("text-[10px] rounded-full px-2 py-0.5 capitalize", colors.badge)}>
+                                    {colors.label}
+                                  </span>
+                                  <span className={cn("text-[10px] rounded-full px-2 py-0.5", accessColors[resource.accessLevel])}>
+                                    {resource.accessLevel}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">{resource.description}</p>
+                                {resource.url && (
+                                  <p className="text-[10px] text-slate-400 mt-1 font-mono truncate">{resource.url}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Plugins Detail */}
                   <div>
