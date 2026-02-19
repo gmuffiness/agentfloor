@@ -18,8 +18,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
+          node-version: 22
 
       - name: Check if version changed
         id: version-check
@@ -40,12 +39,10 @@ jobs:
         working-directory: cli
         run: npm install
 
-      - name: Publish to npm
+      - name: Publish to npm via OIDC
         if: steps.version-check.outputs.changed == 'true'
         working-directory: cli
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         run: |
