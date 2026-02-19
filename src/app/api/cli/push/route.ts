@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       // Update agent fields
-      await supabase
+      const { error: updateError } = await supabase
         .from("agents")
         .update({
           name: agentName,
@@ -145,6 +145,14 @@ export async function POST(request: NextRequest) {
           last_active: new Date().toISOString(),
         })
         .eq("id", agentId);
+
+      if (updateError) {
+        console.error("Agent update failed:", updateError);
+        return NextResponse.json(
+          { error: `Failed to update agent: ${updateError.message}` },
+          { status: 500 },
+        );
+      }
 
       // Update MCP tools: delete old, insert new
       if (mcpTools) {
@@ -241,7 +249,7 @@ export async function POST(request: NextRequest) {
   const newAgentId = `agent-${Date.now()}`;
   const now = new Date().toISOString();
 
-  await supabase.from("agents").insert({
+  const { error: insertError } = await supabase.from("agents").insert({
     id: newAgentId,
     dept_id: deptId,
     name: agentName,
@@ -257,6 +265,14 @@ export async function POST(request: NextRequest) {
     created_at: now,
     registered_by: memberId || null,
   });
+
+  if (insertError) {
+    console.error("Agent insert failed:", insertError);
+    return NextResponse.json(
+      { error: `Failed to create agent: ${insertError.message}` },
+      { status: 500 },
+    );
+  }
 
   // Create MCP tools
   if (mcpTools?.length) {
