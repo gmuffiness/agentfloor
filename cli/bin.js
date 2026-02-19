@@ -11,6 +11,9 @@
  *   npx agentfloor logout    # Remove global config
  */
 
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import { Command } from "commander";
 import { loginCommand } from "./commands/login.mjs";
 import { pushCommand } from "./commands/push.mjs";
@@ -18,12 +21,15 @@ import { statusCommand } from "./commands/status.mjs";
 import { whoamiCommand } from "./commands/whoami.mjs";
 import { logoutCommand } from "./commands/logout.mjs";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
+
 const program = new Command();
 
 program
   .name("agentfloor")
   .description("AgentFloor CLI — AI Agent Fleet Management")
-  .version("0.1.0");
+  .version(pkg.version);
 
 program
   .command("login")

@@ -1,6 +1,6 @@
 {
   "name": "agentfloor",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI for AgentFloor — AI Agent Fleet Management hub",
   "type": "module",
   "bin": {
