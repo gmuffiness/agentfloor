@@ -1,0 +1,29 @@
+{
+  "name": "agentfloor",
+  "version": "0.1.1",
+  "description": "CLI for AgentFloor — AI Agent Fleet Management hub",
+  "type": "module",
+  "bin": {
+    "agentfloor": "bin.js"
+  },
+  "files": [
+    "bin.js",
+    "commands/",
+    "lib/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "claude",
+    "fleet",
+    "management",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^14.0.3"
+  }
+}

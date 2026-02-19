@@ -1,0 +1,52 @@
+name: Publish CLI to npm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cli/**'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Check if version changed
+        id: version-check
+        working-directory: cli
+        run: |
+          LOCAL_VERSION=$(node -p "require('./package.json').version")
+          NPM_VERSION=$(npm view agentfloor version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+          echo "npm=$NPM_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL_VERSION" != "$NPM_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.version-check.outputs.changed == 'true'
+        working-directory: cli
+        run: npm install
+
+      - name: Publish to npm
+        if: steps.version-check.outputs.changed == 'true'
+        working-directory: cli
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.version-check.outputs.changed }}" == "true" ]; then
+            echo "### Published agentfloor@${{ steps.version-check.outputs.local }} to npm" >> "$GITHUB_SUMMARY"
+          else
+            echo "### Skipped — version ${{ steps.version-check.outputs.local }} already published" >> "$GITHUB_SUMMARY"
+          fi
