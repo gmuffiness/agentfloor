@@ -9,6 +9,7 @@ import { AnnouncementDropdown } from "./AnnouncementDropdown";
 
 const navSuffixes = [
   { suffix: "", label: "Map" },
+  { suffix: "/overview", label: "Overview" },
   { suffix: "/graph", label: "Graph" },
   { suffix: "/org-chart", label: "Org Chart" },
   { suffix: "/agents", label: "Agents" },
