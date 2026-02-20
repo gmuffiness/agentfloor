@@ -2,7 +2,11 @@
 
 ## Overview
 
-AgentFloor is a **centralized monitoring hub** for distributed AI agent fleets. Individual developers clone the repo, run `/agentfloor:setup`, and their Claude Code agents register to a shared organization. The hub visualizes all agents across the organization in a Gather.town-style spatial dashboard.
+AgentFloor is **"GitHub for AI Agents"** — an enterprise agent registry that centralizes the configuration, status, and relationships of distributed AI agents into a single source of truth. Just as GitHub manages code repositories across an organization, AgentFloor manages agent fleets: what each agent can do (skills, MCP tools), who registered it, which department it belongs to, and whether it's currently active.
+
+Individual developers run `npx agentfloor push` from their projects, and their Claude Code agents register to a shared organization. The hub visualizes all agents across the organization in a Gather.town-style spatial dashboard.
+
+See [docs/vision.md](vision.md) for service positioning and competitive landscape.
 
 ### How It Works
 

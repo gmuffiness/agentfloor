@@ -1,9 +1,7 @@
 {
-  "name": "agentfloor",
+  "name": "agentfloor-hub",
   "version": "0.1.0",
-  "bin": {
-    "agentfloor": "./cli/bin.mjs"
-  },
+  "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
