@@ -25,7 +25,7 @@ const CYCLE_LABELS: Record<BillingCycle, string> = {
   pay_as_you_go: "Pay-as-you-go",
 };
 
-export default function SubscriptionManager({ orgId, memberId, isAdmin }: SubscriptionManagerProps) {
+export default function SubscriptionManager({ orgId, memberId }: SubscriptionManagerProps) {
   const [subscriptions, setSubscriptions] = useState<MemberSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -53,8 +53,22 @@ export default function SubscriptionManager({ orgId, memberId, isAdmin }: Subscr
   }, [orgId, memberId]);
 
   useEffect(() => {
-    fetchSubscriptions();
-  }, [fetchSubscriptions]);
+    let cancelled = false;
+    const load = async () => {
+      const url = memberId
+        ? `/api/organizations/${orgId}/subscriptions?memberId=${memberId}`
+        : `/api/organizations/${orgId}/subscriptions`;
+      const res = await fetch(url);
+      if (cancelled) return;
+      if (res.ok) {
+        const data = await res.json();
+        setSubscriptions(data);
+      }
+      setLoading(false);
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [orgId, memberId]);
 
   const handlePresetChange = (presetName: string) => {
     setAddPreset(presetName);
