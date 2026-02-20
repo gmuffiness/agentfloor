@@ -31,6 +31,11 @@ export async function loadSpriteSheet(): Promise<void> {
   });
 }
 
+/** Get the loaded sprite sheet texture (must call loadSpriteSheet first). */
+export function getSpriteSheetTexture(): Texture | null {
+  return sheetTexture;
+}
+
 /** Reset cached sprite sheet (call on Pixi app destruction). */
 export function resetSpriteSheet(): void {
   sheetTexture = null;

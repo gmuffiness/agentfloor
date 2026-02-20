@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from "react";
-import { Application, Container, Graphics, Sprite, Texture } from "pixi.js";
+import React, { useRef, useEffect, useCallback, useState } from "react";
+import { Application, Container, Graphics } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { useAppStore } from "@/stores/app-store";
 import { createDepartmentRoom } from "./DepartmentRoom";
-import { createAgentAvatar, loadSpriteSheet, resetSpriteSheet } from "./AgentAvatar";
+import { createAgentAvatar, loadSpriteSheet, getSpriteSheetTexture, resetSpriteSheet } from "./AgentAvatar";
+import { PlayerCharacter, type PlayerKeys, type RoomCollider } from "./PlayerCharacter";
 import MapControls from "./MapControls";
+import DialogueOverlay from "./DialogueOverlay";
+import type { Agent } from "@/types";
 
 // Shared viewport ref for programmatic access
 let sharedViewport: Viewport | null = null;
@@ -41,10 +44,8 @@ function seededRand(x: number, y: number): number {
 
 /** Draw a pixel-art tree at position */
 function drawTree(g: Graphics, x: number, y: number) {
-  // Trunk (4x8)
   g.rect(x + 8, y + 16, 4, 8);
   g.fill(TREE_TRUNK);
-  // Canopy - triangle as stacked rects for pixel look
   g.rect(x + 4, y + 12, 12, 4);
   g.fill(TREE_LEAVES);
   g.rect(x + 2, y + 8, 16, 4);
@@ -53,7 +54,6 @@ function drawTree(g: Graphics, x: number, y: number) {
   g.fill(TREE_LEAVES);
   g.rect(x + 6, y, 8, 4);
   g.fill(TREE_LEAVES_LIGHT);
-  // Highlight
   g.rect(x + 6, y + 8, 4, 4);
   g.fill(TREE_LEAVES_LIGHT);
 }
@@ -64,22 +64,18 @@ function drawBush(g: Graphics, x: number, y: number) {
   g.fill(BUSH_COLOR);
   g.rect(x + 2, y, 10, 4);
   g.fill(BUSH_COLOR);
-  // Highlight
   g.rect(x + 4, y + 2, 4, 4);
   g.fill(BUSH_HIGHLIGHT);
 }
 
 /** Draw a tiny flower at position */
 function drawFlower(g: Graphics, x: number, y: number, color: number) {
-  // Stem
   g.rect(x + 1, y + 3, 2, 4);
   g.fill(0x3d6b33);
-  // Petals (cross pattern)
   g.rect(x, y + 1, 4, 2);
   g.fill(color);
   g.rect(x + 1, y, 2, 4);
   g.fill(color);
-  // Center
   g.rect(x + 1, y + 1, 2, 2);
   g.fill(0xffee88);
 }
@@ -92,7 +88,6 @@ function drawStone(g: Graphics, x: number, y: number) {
   g.fill(STONE_COLOR);
   g.rect(x + 1, y + 4, 4, 1);
   g.fill(STONE_SHADOW);
-  // Highlight
   g.rect(x + 1, y + 1, 2, 1);
   g.fill(0xa0a0a0);
 }
@@ -139,7 +134,6 @@ function createGroundLayer(
   const ground = new Container();
   ground.label = "ground-layer";
 
-  // Tile grid pattern with 3-shade grass variation
   const tiles = new Graphics();
   const pad = TILE_SIZE * 4;
   const cols = Math.ceil((worldW + pad * 2) / TILE_SIZE);
@@ -157,7 +151,6 @@ function createGroundLayer(
   }
   ground.addChild(tiles);
 
-  // Dirt paths connecting adjacent department rooms
   const paths = new Graphics();
   const sorted = [...rooms].sort((a, b) => a.y === b.y ? a.x - b.x : a.y - b.y);
   for (let i = 0; i < sorted.length; i++) {
@@ -168,11 +161,9 @@ function createGroundLayer(
       const bLeft = b.x;
       const aMid = a.y + a.h / 2;
       const bMid = b.y + b.h / 2;
-      // Horizontal neighbors (same row-ish)
       if (Math.abs(aMid - bMid) < 100 && bLeft > aRight && bLeft - aRight < 120) {
         drawPathH(paths, aRight, Math.min(aMid, bMid), bLeft - aRight);
       }
-      // Vertical neighbors (same column-ish)
       const aCx = a.x + a.w / 2;
       const bCx = b.x + b.w / 2;
       const aBot = a.y + a.h;
@@ -184,7 +175,6 @@ function createGroundLayer(
   }
   ground.addChild(paths);
 
-  // Procedural decorations using seeded random, avoiding room areas
   const decorations = new Graphics();
   const DECOR_STEP = 80;
 
@@ -209,15 +199,75 @@ function createGroundLayer(
   }
 
   ground.addChild(decorations);
-
   return ground;
+}
+
+/** Find a spawn point outside all rooms (near the first room's door) */
+function findSpawnPoint(rooms: RoomCollider[]): { x: number; y: number } {
+  if (rooms.length === 0) return { x: 200, y: 200 };
+  // Spawn just outside the first room's door
+  const first = rooms[0];
+  return {
+    x: first.doorX,
+    y: first.y + first.h + 30,
+  };
 }
 
 export default function SpatialCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
+  const playerRef = useRef<PlayerCharacter | null>(null);
+  const keysRef = useRef<PlayerKeys>({ up: false, down: false, left: false, right: false, interact: false });
+  const [nearbyAgentName, setNearbyAgentName] = useState<string | null>(null);
+  const [dialogueAgent, setDialogueAgent] = useState<Agent | null>(null);
+  const dialogueOpenRef = useRef(false);
   const organization = useAppStore((s) => s.organization);
+
+  // Keyboard event handlers
+  useEffect(() => {
+    const keys = keysRef.current;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Don't capture keys when typing in inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key) {
+        case "ArrowUp": case "w": case "W":
+          keys.up = true; e.preventDefault(); break;
+        case "ArrowDown": case "s": case "S":
+          keys.down = true; e.preventDefault(); break;
+        case "ArrowLeft": case "a": case "A":
+          keys.left = true; e.preventDefault(); break;
+        case "ArrowRight": case "d": case "D":
+          keys.right = true; e.preventDefault(); break;
+        case "e": case "E":
+          keys.interact = true; e.preventDefault(); break;
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case "ArrowUp": case "w": case "W":
+          keys.up = false; break;
+        case "ArrowDown": case "s": case "S":
+          keys.down = false; break;
+        case "ArrowLeft": case "a": case "A":
+          keys.left = false; break;
+        case "ArrowRight": case "d": case "D":
+          keys.right = false; break;
+        case "e": case "E":
+          keys.interact = false; break;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
 
   useEffect(() => {
     const div = containerRef.current;
@@ -253,16 +303,18 @@ export default function SpatialCanvas() {
         events: app.renderer.events,
       });
 
+      // Player mode: wheel zoom + pinch only (no drag — player moves via keyboard)
       viewport
-        .drag()
         .pinch()
         .wheel()
-        .decelerate()
-        .clampZoom({ minScale: 0.3, maxScale: 3 });
+        .clampZoom({ minScale: 0.5, maxScale: 3 });
 
       app.stage.addChild(viewport as unknown as Container);
       viewportRef.current = viewport;
       sharedViewport = viewport;
+
+      // Enable sortable children for z-ordering (player on top)
+      viewport.sortableChildren = true;
 
       // Calculate dynamic world dimensions from department data
       const rooms = organization.departments.map((d) => ({
@@ -291,8 +343,24 @@ export default function SpatialCanvas() {
 
       if (destroyed) { app.destroy(true); return; }
 
+      // Build room colliders for player collision
+      const roomColliders: RoomCollider[] = organization.departments.map((dept) => {
+        const { x, y, width, height } = dept.layout;
+        const doorW = 18;
+        return {
+          x,
+          y,
+          w: width,
+          h: height,
+          doorX: x + Math.floor(width / 2),
+          doorY: y + height,
+          doorW,
+        };
+      });
+
       // Render departments and agents
       const avatarContainers: (Container & { _baseY: number; _agentStatus: string })[] = [];
+      const agentPositionMap: { agent: Agent; x: number; y: number; container: Container }[] = [];
 
       for (const dept of organization.departments) {
         const roomContainer = createDepartmentRoom(dept, (d) => {
@@ -315,7 +383,6 @@ export default function SpatialCanvas() {
 
         for (let ai = 0; ai < dept.agents.length; ai++) {
           const agent = dept.agents[ai];
-          // Ensure agent position falls within its department room
           const px = agent.position.x;
           const py = agent.position.y;
           const inside =
@@ -323,33 +390,73 @@ export default function SpatialCanvas() {
             py >= dy + PAD && py <= dy + dh - PAD;
 
           if (!inside) {
-            // Recalculate position within room
             agent.position.x = dx + PAD + (ai % cols) * AGENT_GAP + AGENT_GAP / 2;
             agent.position.y = dy + PAD + 20 + Math.floor(ai / cols) * AGENT_GAP + AGENT_GAP / 2;
           }
 
           const avatar = createAgentAvatar(agent);
+          avatar.zIndex = 10;
           viewport.addChild(avatar);
           avatarContainers.push(avatar as Container & { _baseY: number; _agentStatus: string });
+
+          agentPositionMap.push({
+            agent,
+            x: agent.position.x,
+            y: agent.position.y,
+            container: avatar,
+          });
         }
       }
 
-      // Fit all rooms in view initially
-      viewport.fit(true, worldWidth, worldHeight);
-      viewport.moveCenter(worldWidth / 2, worldHeight / 2);
+      // === Create Player Character ===
+      const sheetTexture = getSpriteSheetTexture()!;
+      const spawn = findSpawnPoint(roomColliders);
+      const player = new PlayerCharacter(spawn.x, spawn.y, sheetTexture);
+      playerRef.current = player;
+      viewport.addChild(player.container);
 
-      // Animate active agents (gentle floating) and error agents (pulsing)
+      // Camera: follow the player
+      viewport.follow(player.container, {
+        speed: 0, // instant follow (no lag)
+        acceleration: null,
+        radius: null,
+      });
+      viewport.setZoom(1.8, true);
+
+      // === Game loop ===
       let elapsed = 0;
       app.ticker.add((ticker) => {
         const dt = ticker.deltaTime / 60; // seconds
         elapsed += dt;
 
+        // Block movement keys while dialogue is open
+        const keys = keysRef.current;
+        if (dialogueOpenRef.current) {
+          keys.up = false;
+          keys.down = false;
+          keys.left = false;
+          keys.right = false;
+          keys.interact = false;
+        }
+
+        // Update player
+        const { nearby, interacted } = player.update(keys, dt, roomColliders, agentPositionMap);
+
+        // Handle interaction — open dialogue
+        if (interacted && !dialogueOpenRef.current) {
+          dialogueOpenRef.current = true;
+          setDialogueAgent(interacted.agent);
+        }
+
+        // Update React state for UI overlay (throttled)
+        const newName = nearby ? nearby.agent.name : null;
+        setNearbyAgentName((prev) => prev === newName ? prev : newName);
+
+        // Agent idle/error animations
         for (const avatar of avatarContainers) {
           if (avatar._agentStatus === "active") {
-            // Gentle floating bob only — no sprite frame changes
             avatar.y = avatar._baseY + Math.sin(elapsed * 2.5 + avatar._baseY) * 3;
           } else if (avatar._agentStatus === "error") {
-            // Pulse the error indicator
             const pulse = 0.85 + Math.sin(elapsed * 5) * 0.15;
             avatar.scale.set(pulse);
           }
@@ -364,7 +471,6 @@ export default function SpatialCanvas() {
       };
       window.addEventListener("resize", onResize);
 
-      // Store cleanup reference
       (app as Application & { _cleanup?: () => void })._cleanup = () => {
         window.removeEventListener("resize", onResize);
       };
@@ -374,19 +480,22 @@ export default function SpatialCanvas() {
       destroyed = true;
       sharedViewport = null;
       resetSpriteSheet();
+      if (playerRef.current) {
+        playerRef.current.destroy();
+        playerRef.current = null;
+      }
       const currentApp = appRef.current;
       if (currentApp) {
         const cleanup = (currentApp as Application & { _cleanup?: () => void })._cleanup;
         if (cleanup) cleanup();
         try {
-          // Remove canvas from DOM if it exists
           const canvas = currentApp.canvas as HTMLCanvasElement | undefined;
           if (canvas && canvas.parentNode) {
             canvas.parentNode.removeChild(canvas);
           }
           currentApp.destroy(true, { children: true });
         } catch {
-          // Pixi may throw if init hasn't completed yet - safe to ignore
+          // Pixi may throw if init hasn't completed yet
         }
       }
       appRef.current = null;
@@ -415,6 +524,48 @@ export default function SpatialCanvas() {
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
+
+      {/* Game-style control hints overlay */}
+      <div className="absolute top-4 left-4 z-10 pointer-events-none">
+        <div className="bg-gray-900/80 border-2 border-gray-600 px-3 py-2 font-mono text-xs text-gray-300 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)]">
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col items-center gap-0.5">
+              <kbd className="bg-gray-700 border border-gray-500 px-1.5 py-0.5 text-[10px] text-amber-200 rounded-sm">W</kbd>
+              <div className="flex gap-0.5">
+                <kbd className="bg-gray-700 border border-gray-500 px-1.5 py-0.5 text-[10px] text-amber-200 rounded-sm">A</kbd>
+                <kbd className="bg-gray-700 border border-gray-500 px-1.5 py-0.5 text-[10px] text-amber-200 rounded-sm">S</kbd>
+                <kbd className="bg-gray-700 border border-gray-500 px-1.5 py-0.5 text-[10px] text-amber-200 rounded-sm">D</kbd>
+              </div>
+            </div>
+            <span className="text-gray-400">Move</span>
+            <div className="h-4 w-px bg-gray-600" />
+            <kbd className="bg-gray-700 border border-gray-500 px-1.5 py-0.5 text-[10px] text-amber-200 rounded-sm">E</kbd>
+            <span className="text-gray-400">Talk</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Nearby agent indicator — hidden when dialogue is open */}
+      {nearbyAgentName && !dialogueAgent && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-gray-900/90 border-2 border-blue-500/60 px-4 py-2 font-mono text-sm text-blue-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)] animate-pulse">
+            Press <kbd className="bg-gray-700 border border-blue-400 px-1.5 py-0.5 text-xs text-blue-300 rounded-sm mx-1">E</kbd> to talk to <span className="text-white font-bold">{nearbyAgentName}</span>
+          </div>
+        </div>
+      )}
+
+      {/* RPG dialogue overlay */}
+      {dialogueAgent && (
+        <DialogueOverlay
+          agent={dialogueAgent}
+          orgId={organization.id}
+          onClose={() => {
+            setDialogueAgent(null);
+            dialogueOpenRef.current = false;
+          }}
+        />
+      )}
+
       <MapControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
