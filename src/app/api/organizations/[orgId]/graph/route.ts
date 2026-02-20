@@ -190,46 +190,101 @@ async function loadOrganization(orgId: string): Promise<Organization | null> {
   const { data: org } = await supabase.from("organizations").select("*").eq("id", orgId).single();
   if (!org) return null;
 
-  const { data: deptRows } = await supabase
-    .from("departments")
-    .select("*")
-    .eq("org_id", org.id);
+  const [
+    { data: deptRows },
+    { data: allSkills },
+  ] = await Promise.all([
+    supabase.from("departments").select("*").eq("org_id", org.id),
+    supabase.from("skills").select("*"),
+  ]);
 
-  const { data: allSkills } = await supabase.from("skills").select("*");
   const skillMap = new Map((allSkills ?? []).map((s) => [s.id, s]));
+  const deptIds = (deptRows ?? []).map((d) => d.id);
 
-  const depts: Department[] = [];
+  // Fetch all agents for all departments in one query
+  const { data: allAgents } = await supabase
+    .from("agents")
+    .select("*")
+    .in("dept_id", deptIds.length > 0 ? deptIds : ["__none__"]);
 
-  for (const dept of deptRows ?? []) {
-    const { data: agentRows } = await supabase.from("agents").select("*").eq("dept_id", dept.id);
-    const agentList: Agent[] = [];
+  const agentIds = (allAgents ?? []).map((a) => a.id);
+  const agentIdFilter = agentIds.length > 0 ? agentIds : ["__none__"];
 
-    for (const agent of agentRows ?? []) {
-      const { data: agentSkillRows } = await supabase
-        .from("agent_skills")
-        .select("skill_id")
-        .eq("agent_id", agent.id);
-      const skills: Skill[] = (agentSkillRows ?? [])
+  // Bulk fetch all agent-related data in parallel
+  const [
+    { data: allAgentSkills },
+    { data: allPlugins },
+    { data: allMcpTools },
+    { data: allUsageHistory },
+    { data: allCostHistory },
+  ] = await Promise.all([
+    supabase.from("agent_skills").select("agent_id, skill_id").in("agent_id", agentIdFilter),
+    supabase.from("plugins").select("*").in("agent_id", agentIdFilter),
+    supabase.from("mcp_tools").select("*").in("agent_id", agentIdFilter),
+    supabase.from("usage_history").select("*").in("agent_id", agentIdFilter),
+    supabase.from("cost_history").select("*").in("dept_id", deptIds.length > 0 ? deptIds : ["__none__"]),
+  ]);
+
+  // Group by agent_id / dept_id
+  const agentSkillsByAgent = new Map<string, NonNullable<typeof allAgentSkills>>();
+  for (const row of allAgentSkills ?? []) {
+    if (!agentSkillsByAgent.has(row.agent_id)) agentSkillsByAgent.set(row.agent_id, []);
+    agentSkillsByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const pluginsByAgent = new Map<string, NonNullable<typeof allPlugins>>();
+  for (const row of allPlugins ?? []) {
+    if (!pluginsByAgent.has(row.agent_id)) pluginsByAgent.set(row.agent_id, []);
+    pluginsByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const mcpByAgent = new Map<string, NonNullable<typeof allMcpTools>>();
+  for (const row of allMcpTools ?? []) {
+    if (!mcpByAgent.has(row.agent_id)) mcpByAgent.set(row.agent_id, []);
+    mcpByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const usageByAgent = new Map<string, NonNullable<typeof allUsageHistory>>();
+  for (const row of allUsageHistory ?? []) {
+    if (!usageByAgent.has(row.agent_id)) usageByAgent.set(row.agent_id, []);
+    usageByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const costByDept = new Map<string, NonNullable<typeof allCostHistory>>();
+  for (const row of allCostHistory ?? []) {
+    if (!costByDept.has(row.dept_id)) costByDept.set(row.dept_id, []);
+    costByDept.get(row.dept_id)!.push(row);
+  }
+
+  // Group agents by dept
+  const agentsByDept = new Map<string, NonNullable<typeof allAgents>>();
+  for (const agent of allAgents ?? []) {
+    if (!agentsByDept.has(agent.dept_id)) agentsByDept.set(agent.dept_id, []);
+    agentsByDept.get(agent.dept_id)!.push(agent);
+  }
+
+  const depts: Department[] = (deptRows ?? []).map((dept) => {
+    const deptAgents = agentsByDept.get(dept.id) ?? [];
+
+    const agentList: Agent[] = deptAgents.map((agent) => {
+      const skills: Skill[] = (agentSkillsByAgent.get(agent.id) ?? [])
         .map((as) => skillMap.get(as.skill_id))
         .filter((s): s is Skill => s !== undefined) as Skill[];
 
-      const { data: pluginRows } = await supabase.from("plugins").select("*").eq("agent_id", agent.id);
-      const plugins: Plugin[] = (pluginRows ?? []).map((p) => ({
+      const plugins: Plugin[] = (pluginsByAgent.get(agent.id) ?? []).map((p) => ({
         id: p.id, name: p.name, icon: p.icon, description: p.description, version: p.version, enabled: p.enabled,
       }));
 
-      const { data: mcpRows } = await supabase.from("mcp_tools").select("*").eq("agent_id", agent.id);
-      const mcpTools: McpTool[] = (mcpRows ?? []).map((m) => ({
+      const mcpTools: McpTool[] = (mcpByAgent.get(agent.id) ?? []).map((m) => ({
         id: m.id, name: m.name, server: m.server, icon: m.icon, description: m.description,
         category: m.category as McpTool["category"],
       }));
 
-      const { data: usageRows } = await supabase.from("usage_history").select("*").eq("agent_id", agent.id);
-      const usageHistory: DailyUsage[] = (usageRows ?? []).map((u) => ({
+      const usageHistory: DailyUsage[] = (usageByAgent.get(agent.id) ?? []).map((u) => ({
         date: u.date, tokens: u.tokens, cost: u.cost, requests: u.requests,
       }));
 
-      agentList.push({
+      return {
         id: agent.id, name: agent.name, description: agent.description,
         vendor: agent.vendor as Agent["vendor"], model: agent.model,
         status: agent.status as Agent["status"],
@@ -238,24 +293,23 @@ async function loadOrganization(orgId: string): Promise<Organization | null> {
         skills, plugins, mcpTools, resources: [], usageHistory, humanId: null,
         registeredBy: agent.registered_by ?? null,
         lastActive: agent.last_active, createdAt: agent.created_at,
-      });
-    }
+      };
+    });
 
-    const { data: costRows } = await supabase.from("cost_history").select("*").eq("dept_id", dept.id);
-    const costHistory: MonthlyCost[] = (costRows ?? []).map((c) => ({
+    const costHistory: MonthlyCost[] = (costByDept.get(dept.id) ?? []).map((c) => ({
       month: c.month, amount: c.amount,
       byVendor: { anthropic: c.anthropic, openai: c.openai, google: c.google },
     }));
 
-    depts.push({
+    return {
       id: dept.id, name: dept.name, description: dept.description,
       parentId: dept.parent_id ?? null,
       budget: dept.budget, monthlySpend: dept.monthly_spend,
       layout: { x: dept.layout_x, y: dept.layout_y, width: dept.layout_w, height: dept.layout_h },
       primaryVendor: dept.primary_vendor as Department["primaryVendor"],
       agents: agentList, costHistory,
-    });
-  }
+    };
+  });
 
   return {
     id: org.id, name: org.name, totalBudget: org.total_budget, departments: depts,

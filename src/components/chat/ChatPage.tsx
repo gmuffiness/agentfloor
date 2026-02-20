@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { AgentSelector } from "./AgentSelector";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { ConversationList } from "./ConversationList";
 import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
+import { NewChatModal } from "./NewChatModal";
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/stores/app-store";
 import type { Vendor, Conversation, Message } from "@/types";
 
 interface AgentItem {
@@ -17,60 +19,55 @@ interface AgentItem {
   gitRepo?: string;
 }
 
+interface StreamingAgent {
+  agentId: string;
+  agentName: string;
+  agentVendor?: string;
+  text: string;
+}
+
 interface ChatPageProps {
   orgId: string;
 }
 
 export function ChatPage({ orgId }: ChatPageProps) {
-  const [agents, setAgents] = useState<AgentItem[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const organization = useAppStore((s) => s.organization);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [streamingText, setStreamingText] = useState("");
+  const [streamingAgent, setStreamingAgent] = useState<StreamingAgent | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
 
-  const selectedAgent = agents.find((a) => a.id === selectedAgentId);
+  // Derive agents from store instead of separate API call
+  const agents = useMemo<AgentItem[]>(() =>
+    organization.departments.flatMap((dept) =>
+      dept.agents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        vendor: a.vendor,
+        model: a.model,
+        status: a.status,
+        skillCount: a.skills.length,
+        gitRepo: "",
+      }))
+    ), [organization]);
 
-  // Fetch agents
-  useEffect(() => {
-    async function fetchAgents() {
-      const res = await fetch(`/api/organizations/${orgId}/agents`);
-      if (res.ok) {
-        const data = await res.json();
-        setAgents(
-          data.map((a: Record<string, unknown>) => ({
-            id: a.id as string,
-            name: a.name as string,
-            vendor: a.vendor as Vendor,
-            model: a.model as string,
-            status: a.status as string,
-            skillCount: 0,
-            gitRepo: "",
-          }))
-        );
-      }
-      setLoading(false);
-    }
-    fetchAgents();
-  }, [orgId]);
+  const selectedConv = conversations.find((c) => c.id === selectedConvId);
+  const participants = selectedConv?.participants ?? [];
 
-  // Fetch conversations when agent selected
-  const fetchConversations = useCallback(async (agentId: string) => {
-    const res = await fetch(`/api/organizations/${orgId}/conversations?agentId=${agentId}`);
+  // Fetch all conversations
+  const fetchConversations = useCallback(async () => {
+    const res = await fetch(`/api/organizations/${orgId}/conversations`);
     if (res.ok) {
       setConversations(await res.json());
     }
   }, [orgId]);
 
   useEffect(() => {
-    if (selectedAgentId) {
-      fetchConversations(selectedAgentId);
-      setSelectedConvId(null);
-      setMessages([]);
-    }
-  }, [selectedAgentId, fetchConversations]);
+    fetchConversations();
+  }, [fetchConversations]);
 
   // Fetch messages when conversation selected
   useEffect(() => {
@@ -87,12 +84,65 @@ export function ChatPage({ orgId }: ChatPageProps) {
     fetchMessages();
   }, [orgId, selectedConvId]);
 
-  const handleSend = async (text: string) => {
-    if (!selectedAgentId || isSending) return;
-    setIsSending(true);
-    setStreamingText("");
+  const handleNewConversation = () => {
+    setShowNewChat(true);
+  };
 
-    // Optimistic user message
+  const handleCreateChat = async (agentIds: string[], title?: string) => {
+    setShowNewChat(false);
+
+    // Create a temporary conversation and send the first message later
+    // For now, create the conversation via the chat API on first message send
+    const now = new Date().toISOString();
+    const tempConvId = `conv-${Date.now()}`;
+    const agentNames = agentIds
+      .map((id) => agents.find((a) => a.id === id)?.name)
+      .filter(Boolean)
+      .join(", ");
+
+    const tempConv: Conversation = {
+      id: tempConvId,
+      orgId,
+      agentId: agentIds[0],
+      title: title || agentNames || "New Chat",
+      createdAt: now,
+      updatedAt: now,
+      participants: agentIds.map((id) => {
+        const agent = agents.find((a) => a.id === id);
+        return {
+          id: `cp-temp-${id}`,
+          conversationId: tempConvId,
+          agentId: id,
+          agentName: agent?.name,
+          agentVendor: agent?.vendor,
+          joinedAt: now,
+        };
+      }),
+    };
+
+    setConversations((prev) => [tempConv, ...prev]);
+    setSelectedConvId(tempConvId);
+    setMessages([]);
+    setStreamingAgent(null);
+  };
+
+  // Override handleSend for new (temp) conversations
+  const handleSendMessage = async (text: string) => {
+    if (isSending) return;
+
+    const conv = conversations.find((c) => c.id === selectedConvId);
+    if (!conv) return;
+
+    const agentIds = (conv.participants ?? []).map((p) => p.agentId);
+    if (agentIds.length === 0) return;
+
+    // If it's a temp conversation (not yet in DB), send without conversationId
+    const isTemp = selectedConvId?.startsWith("conv-") && !messages.length;
+    const convIdForApi = isTemp ? undefined : selectedConvId;
+
+    setIsSending(true);
+    setStreamingAgent(null);
+
     const tempUserMsg: Message = {
       id: `temp-${Date.now()}`,
       conversationId: selectedConvId ?? "",
@@ -107,15 +157,15 @@ export function ChatPage({ orgId }: ChatPageProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agentId: selectedAgentId,
-          conversationId: selectedConvId,
+          agentIds,
+          conversationId: convIdForApi,
           message: text,
         }),
       });
 
       if (!res.ok) {
         const err = await res.json();
-        setStreamingText(`Error: ${err.error}`);
+        setStreamingAgent({ agentId: "", agentName: "Error", text: err.error });
         setIsSending(false);
         return;
       }
@@ -124,7 +174,10 @@ export function ChatPage({ orgId }: ChatPageProps) {
       if (!reader) return;
 
       const decoder = new TextDecoder();
-      let accumulated = "";
+      let currentAgentText = "";
+      let currentAgentId = "";
+      let currentAgentName = "";
+      let currentAgentVendor = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -138,34 +191,68 @@ export function ChatPage({ orgId }: ChatPageProps) {
           const jsonStr = line.slice(6);
           try {
             const data = JSON.parse(jsonStr);
-            if (data.text) {
-              accumulated += data.text;
-              setStreamingText(accumulated);
-            }
-            if (data.done) {
-              // Replace streaming with final message
-              const assistantMsg: Message = {
-                id: `msg-${Date.now()}-a`,
-                conversationId: data.conversationId,
-                role: "assistant",
-                content: accumulated,
-                createdAt: new Date().toISOString(),
-              };
-              setStreamingText("");
-              setMessages((prev) => [...prev, assistantMsg]);
 
-              // Update conversation ID if new
-              if (!selectedConvId && data.conversationId) {
+            if (data.agentStart) {
+              if (currentAgentId && currentAgentText) {
+                const assistantMsg: Message = {
+                  id: `msg-${Date.now()}-a-${currentAgentId}`,
+                  conversationId: selectedConvId ?? "",
+                  role: "assistant",
+                  content: currentAgentText,
+                  createdAt: new Date().toISOString(),
+                  agentId: currentAgentId,
+                  agentName: currentAgentName,
+                  agentVendor: currentAgentVendor as Vendor,
+                };
+                setMessages((prev) => [...prev, assistantMsg]);
+              }
+              currentAgentId = data.agentId;
+              currentAgentName = data.agentName;
+              currentAgentVendor = data.agentVendor ?? "";
+              currentAgentText = "";
+              setStreamingAgent({
+                agentId: data.agentId,
+                agentName: data.agentName,
+                agentVendor: data.agentVendor,
+                text: "",
+              });
+            }
+
+            if (data.text) {
+              currentAgentText += data.text;
+              setStreamingAgent((prev) =>
+                prev ? { ...prev, text: currentAgentText } : null
+              );
+            }
+
+            if (data.agentDone) {
+              const assistantMsg: Message = {
+                id: `msg-${Date.now()}-a-${data.agentId}`,
+                conversationId: selectedConvId ?? "",
+                role: "assistant",
+                content: currentAgentText,
+                createdAt: new Date().toISOString(),
+                agentId: currentAgentId,
+                agentName: currentAgentName,
+                agentVendor: currentAgentVendor as Vendor,
+              };
+              setMessages((prev) => [...prev, assistantMsg]);
+              setStreamingAgent(null);
+              currentAgentText = "";
+              currentAgentId = "";
+            }
+
+            if (data.done) {
+              setStreamingAgent(null);
+              if (data.conversationId && data.conversationId !== selectedConvId) {
+                // Replace temp conv ID with real one
                 setSelectedConvId(data.conversationId);
               }
-
-              // Refresh conversations list
-              if (selectedAgentId) {
-                fetchConversations(selectedAgentId);
-              }
+              fetchConversations();
             }
+
             if (data.error) {
-              setStreamingText(`Error: ${data.error}`);
+              setStreamingAgent({ agentId: "", agentName: "Error", text: data.error });
             }
           } catch {
             // skip malformed JSON
@@ -174,16 +261,10 @@ export function ChatPage({ orgId }: ChatPageProps) {
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Network error";
-      setStreamingText(`Error: ${errorMsg}`);
+      setStreamingAgent({ agentId: "", agentName: "Error", text: errorMsg });
     } finally {
       setIsSending(false);
     }
-  };
-
-  const handleNewConversation = () => {
-    setSelectedConvId(null);
-    setMessages([]);
-    setStreamingText("");
   };
 
   if (loading) {
@@ -199,52 +280,91 @@ export function ChatPage({ orgId }: ChatPageProps) {
       {/* Sidebar */}
       <div className="flex w-[280px] shrink-0 flex-col border-r border-slate-700 bg-slate-850">
         <div className="flex-1 overflow-y-auto p-3">
-          <AgentSelector
-            agents={agents}
-            selectedAgentId={selectedAgentId}
-            onSelect={setSelectedAgentId}
+          <ConversationList
+            conversations={conversations}
+            selectedId={selectedConvId}
+            onSelect={(id) => {
+              setSelectedConvId(id);
+              setStreamingAgent(null);
+            }}
+            onNew={handleNewConversation}
           />
-          {selectedAgentId && (
-            <div className="mt-4 border-t border-slate-700 pt-4">
-              <ConversationList
-                conversations={conversations}
-                selectedId={selectedConvId}
-                onSelect={setSelectedConvId}
-                onNew={handleNewConversation}
-              />
-            </div>
-          )}
         </div>
       </div>
 
       {/* Main chat area */}
       <div className="flex flex-1 flex-col">
-        {selectedAgent ? (
+        {selectedConv ? (
           <>
-            {/* Agent context banner */}
+            {/* Conversation header with participants */}
             <div className="border-b border-slate-700 bg-slate-800/50 px-6 py-3">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-white">{selectedAgent.name}</span>
-                <span className="rounded bg-slate-700 px-2 py-0.5 text-[11px] text-slate-300">
-                  {selectedAgent.vendor}/{selectedAgent.model}
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-white">{selectedConv.title}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {participants.map((p) => (
+                    <span
+                      key={p.agentId}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium",
+                        "bg-slate-700 text-slate-300"
+                      )}
+                    >
+                      <span className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        p.agentVendor === "anthropic" ? "bg-orange-400" :
+                        p.agentVendor === "openai" ? "bg-green-400" :
+                        p.agentVendor === "google" ? "bg-blue-400" : "bg-slate-500"
+                      )} />
+                      {p.agentName ?? "Agent"}
+                    </span>
+                  ))}
+                  <button
+                    onClick={handleNewConversation}
+                    className="rounded-full p-1 text-slate-400 hover:bg-slate-700 hover:text-white"
+                    title="New conversation"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <ChatMessages messages={messages} streamingText={streamingText || undefined} />
-            <ChatInput onSend={handleSend} disabled={isSending} />
+            <ChatMessages
+              messages={messages}
+              streamingAgent={streamingAgent}
+            />
+            <ChatInput onSend={handleSendMessage} disabled={isSending} />
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
-              <p className="text-lg font-medium text-slate-400">Select an agent to start chatting</p>
+              <p className="text-lg font-medium text-slate-400">Start a new conversation</p>
               <p className="mt-1 text-sm text-slate-500">
-                Choose an agent from the sidebar to chat with its project context
+                Create a conversation and invite agents to chat
               </p>
+              <button
+                onClick={handleNewConversation}
+                className="mt-4 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
+              >
+                New Conversation
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {showNewChat && (
+        <NewChatModal
+          agents={agents}
+          onClose={() => setShowNewChat(false)}
+          onCreate={handleCreateChat}
+        />
+      )}
     </div>
   );
 }

@@ -21,19 +21,18 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Organization not found" }, { status: 404 });
   }
 
-  const { data: deptRows } = await supabase
-    .from("departments")
-    .select("*")
-    .eq("org_id", org.id);
+  // Bulk queries — all parallel, no N+1
+  const [
+    { data: deptRows },
+    { data: allSkills },
+    { data: memberRows },
+  ] = await Promise.all([
+    supabase.from("departments").select("*").eq("org_id", org.id),
+    supabase.from("skills").select("*"),
+    supabase.from("org_members").select("id, name, email, role, status, joined_at").eq("org_id", org.id),
+  ]);
 
-  const { data: allSkills } = await supabase.from("skills").select("*");
   const skillMap = new Map((allSkills ?? []).map((s) => [s.id, s]));
-
-  // Fetch org members for registered_by lookup
-  const { data: memberRows } = await supabase
-    .from("org_members")
-    .select("id, name, email, role, status, joined_at")
-    .eq("org_id", org.id);
   const memberMap = new Map((memberRows ?? []).map((m) => [m.id, {
     id: m.id,
     orgId: org.id,
@@ -44,34 +43,88 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     joinedAt: m.joined_at,
   }]));
 
-  const depts: Department[] = [];
+  const deptIds = (deptRows ?? []).map((d) => d.id);
 
-  for (const dept of deptRows ?? []) {
-    const { data: agentRows } = await supabase
-      .from("agents")
-      .select("*")
-      .eq("dept_id", dept.id);
+  // Fetch all agents for all departments in one query
+  const { data: allAgents } = await supabase
+    .from("agents")
+    .select("*")
+    .in("dept_id", deptIds.length > 0 ? deptIds : ["__none__"]);
 
-    const agentList: Agent[] = [];
+  const agentIds = (allAgents ?? []).map((a) => a.id);
+  const agentIdFilter = agentIds.length > 0 ? agentIds : ["__none__"];
 
-    for (const agent of agentRows ?? []) {
-      // Skills
-      const { data: agentSkillRows } = await supabase
-        .from("agent_skills")
-        .select("skill_id")
-        .eq("agent_id", agent.id);
+  // Bulk fetch all agent-related data in parallel
+  const [
+    { data: allAgentSkills },
+    { data: allPlugins },
+    { data: allMcpTools },
+    { data: allUsageHistory },
+    { data: allResources },
+    { data: allCostHistory },
+  ] = await Promise.all([
+    supabase.from("agent_skills").select("agent_id, skill_id").in("agent_id", agentIdFilter),
+    supabase.from("plugins").select("*").in("agent_id", agentIdFilter),
+    supabase.from("mcp_tools").select("*").in("agent_id", agentIdFilter),
+    supabase.from("usage_history").select("*").in("agent_id", agentIdFilter),
+    supabase.from("agent_resources").select("*").in("agent_id", agentIdFilter),
+    supabase.from("cost_history").select("*").in("dept_id", deptIds.length > 0 ? deptIds : ["__none__"]),
+  ]);
 
-      const agentSkillList: Skill[] = (agentSkillRows ?? [])
+  // Group by agent_id / dept_id
+  const agentSkillsByAgent = new Map<string, typeof allAgentSkills>();
+  for (const row of allAgentSkills ?? []) {
+    if (!agentSkillsByAgent.has(row.agent_id)) agentSkillsByAgent.set(row.agent_id, []);
+    agentSkillsByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const pluginsByAgent = new Map<string, typeof allPlugins>();
+  for (const row of allPlugins ?? []) {
+    if (!pluginsByAgent.has(row.agent_id)) pluginsByAgent.set(row.agent_id, []);
+    pluginsByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const mcpByAgent = new Map<string, typeof allMcpTools>();
+  for (const row of allMcpTools ?? []) {
+    if (!mcpByAgent.has(row.agent_id)) mcpByAgent.set(row.agent_id, []);
+    mcpByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const usageByAgent = new Map<string, typeof allUsageHistory>();
+  for (const row of allUsageHistory ?? []) {
+    if (!usageByAgent.has(row.agent_id)) usageByAgent.set(row.agent_id, []);
+    usageByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const resourcesByAgent = new Map<string, typeof allResources>();
+  for (const row of allResources ?? []) {
+    if (!resourcesByAgent.has(row.agent_id)) resourcesByAgent.set(row.agent_id, []);
+    resourcesByAgent.get(row.agent_id)!.push(row);
+  }
+
+  const costByDept = new Map<string, typeof allCostHistory>();
+  for (const row of allCostHistory ?? []) {
+    if (!costByDept.has(row.dept_id)) costByDept.set(row.dept_id, []);
+    costByDept.get(row.dept_id)!.push(row);
+  }
+
+  // Group agents by dept
+  const agentsByDept = new Map<string, NonNullable<typeof allAgents>>();
+  for (const agent of allAgents ?? []) {
+    if (!agentsByDept.has(agent.dept_id)) agentsByDept.set(agent.dept_id, []);
+    agentsByDept.get(agent.dept_id)!.push(agent);
+  }
+
+  // Build response — pure in-memory, no more DB calls
+  const depts: Department[] = (deptRows ?? []).map((dept) => {
+    const deptAgents = agentsByDept.get(dept.id) ?? [];
+
+    const agentList: Agent[] = deptAgents.map((agent) => {
+      const agentSkillList: Skill[] = (agentSkillsByAgent.get(agent.id) ?? [])
         .map((as) => skillMap.get(as.skill_id))
         .filter((s): s is Skill => s !== undefined) as Skill[];
 
-      // Plugins
-      const { data: pluginRows } = await supabase
-        .from("plugins")
-        .select("*")
-        .eq("agent_id", agent.id);
-
-      const pluginList: Plugin[] = (pluginRows ?? []).map((p) => ({
+      const pluginList: Plugin[] = (pluginsByAgent.get(agent.id) ?? []).map((p) => ({
         id: p.id,
         name: p.name,
         icon: p.icon,
@@ -80,13 +133,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         enabled: p.enabled,
       }));
 
-      // MCP Tools
-      const { data: mcpRows } = await supabase
-        .from("mcp_tools")
-        .select("*")
-        .eq("agent_id", agent.id);
-
-      const mcpList: McpTool[] = (mcpRows ?? []).map((m) => ({
+      const mcpList: McpTool[] = (mcpByAgent.get(agent.id) ?? []).map((m) => ({
         id: m.id,
         name: m.name,
         server: m.server,
@@ -95,26 +142,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         category: m.category as McpTool["category"],
       }));
 
-      // Usage History
-      const { data: usageRows } = await supabase
-        .from("usage_history")
-        .select("*")
-        .eq("agent_id", agent.id);
-
-      const usageList: DailyUsage[] = (usageRows ?? []).map((u) => ({
+      const usageList: DailyUsage[] = (usageByAgent.get(agent.id) ?? []).map((u) => ({
         date: u.date,
         tokens: u.tokens,
         cost: u.cost,
         requests: u.requests,
       }));
 
-      // Resources
-      const { data: resourceRows } = await supabase
-        .from("agent_resources")
-        .select("*")
-        .eq("agent_id", agent.id);
-
-      const resourceList: AgentResource[] = (resourceRows ?? []).map((r) => ({
+      const resourceList: AgentResource[] = (resourcesByAgent.get(agent.id) ?? []).map((r) => ({
         id: r.id,
         type: r.type as AgentResource["type"],
         name: r.name,
@@ -125,7 +160,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         createdAt: r.created_at,
       }));
 
-      agentList.push({
+      return {
         id: agent.id,
         name: agent.name,
         description: agent.description,
@@ -145,16 +180,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         humanId: agent.human_id ?? null,
         registeredBy: agent.registered_by ?? null,
         registeredByMember: agent.registered_by ? (memberMap.get(agent.registered_by) ?? null) : null,
-      });
-    }
+      };
+    });
 
-    // Cost History
-    const { data: costRows } = await supabase
-      .from("cost_history")
-      .select("*")
-      .eq("dept_id", dept.id);
-
-    const costList: MonthlyCost[] = (costRows ?? []).map((c) => ({
+    const costList: MonthlyCost[] = (costByDept.get(dept.id) ?? []).map((c) => ({
       month: c.month,
       amount: c.amount,
       byVendor: {
@@ -164,7 +193,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       },
     }));
 
-    depts.push({
+    return {
       id: dept.id,
       name: dept.name,
       description: dept.description,
@@ -175,8 +204,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       primaryVendor: dept.primary_vendor as Department["primaryVendor"],
       agents: agentList,
       costHistory: costList,
-    });
-  }
+    };
+  });
 
   const result: Organization = {
     id: org.id,
@@ -185,7 +214,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     departments: depts,
   };
 
-  return NextResponse.json(result);
+  return NextResponse.json(result, {
+    headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
+  });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {

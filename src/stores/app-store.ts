@@ -10,6 +10,7 @@ interface AppState {
   zoomLevel: number;
   isLoaded: boolean;
   sidebarCollapsed: boolean;
+  lastFetchedAt: number;
   // Actions
   setCurrentOrgId: (orgId: string) => void;
   toggleSidebar: () => void;
@@ -19,7 +20,7 @@ interface AppState {
   setViewMode: (mode: "map" | "cost" | "skills") => void;
   setZoomLevel: (level: number) => void;
   clearSelection: () => void;
-  fetchOrganization: (orgId: string) => Promise<void>;
+  fetchOrganization: (orgId: string, force?: boolean) => Promise<void>;
   // Announcements
   announcements: Announcement[];
   fetchAnnouncements: (orgId: string) => Promise<void>;
@@ -53,6 +54,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   zoomLevel: 1,
   isLoaded: false,
   sidebarCollapsed: false,
+  lastFetchedAt: 0,
   announcements: [],
 
   setCurrentOrgId: (orgId) => set({ currentOrgId: orgId }),
@@ -118,12 +120,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  fetchOrganization: async (orgId: string) => {
+  fetchOrganization: async (orgId: string, force?: boolean) => {
+    const state = get();
+    const STALE_MS = 30_000; // 30 seconds
+    if (
+      !force &&
+      state.isLoaded &&
+      state.currentOrgId === orgId &&
+      Date.now() - state.lastFetchedAt < STALE_MS
+    ) {
+      return; // already fresh
+    }
     try {
       const res = await fetch(`/api/organizations/${orgId}`);
       if (res.ok) {
         const data: Organization = await res.json();
-        set({ organization: data, currentOrgId: orgId, isLoaded: true });
+        set({ organization: data, currentOrgId: orgId, isLoaded: true, lastFetchedAt: Date.now() });
       }
     } catch {
       console.warn("Failed to fetch organization from API");

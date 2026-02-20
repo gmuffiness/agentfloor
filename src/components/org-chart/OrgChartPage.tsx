@@ -59,106 +59,124 @@ export function OrgChartPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const selectAgent = useAppStore((s) => s.selectAgent);
   const selectDepartment = useAppStore((s) => s.selectDepartment);
-  const currentOrgId = useAppStore((s) => s.currentOrgId);
   const organization = useAppStore((s) => s.organization);
 
   useEffect(() => {
-    if (!currentOrgId) return;
-    fetch(`/api/organizations/${currentOrgId}/graph`)
-      .then((res) => res.json())
-      .then((data: { nodes: Node[]; edges: Edge[] }) => {
-        // Filter to only dept and agent nodes
-        const deptNodes = data.nodes.filter((n) => n.type === "department");
-        const agentNodes = data.nodes.filter((n) => n.type === "agent");
-        const belongsToEdges = data.edges.filter(
-          (e) => (e.data as { relationship: string })?.relationship === "belongs-to",
-        );
+    if (!organization || organization.departments.length === 0) return;
 
-        // Add org root node
-        const orgNode: Node = {
-          id: "org-root",
-          type: "organization",
-          position: { x: 0, y: 0 },
-          data: {
-            name: organization.name,
-            departmentCount: organization.departments.length,
-            totalBudget: organization.totalBudget,
-          },
+    // Build graph nodes/edges directly from store data — no API call needed
+    const deptNodes: Node[] = organization.departments.map((dept) => ({
+      id: `dept-${dept.id}`,
+      type: "department",
+      position: { x: 0, y: 0 },
+      data: {
+        name: dept.name,
+        parentId: dept.parentId,
+        agentCount: dept.agents.length,
+        budget: dept.budget,
+        monthlySpend: dept.monthlySpend,
+        vendor: dept.primaryVendor,
+      },
+    }));
+
+    const agentNodes: Node[] = organization.departments.flatMap((dept) =>
+      dept.agents.map((agent) => ({
+        id: `agent-${agent.id}`,
+        type: "agent",
+        position: { x: 0, y: 0 },
+        data: {
+          name: agent.name,
+          vendor: agent.vendor,
+          model: agent.model,
+          status: agent.status,
+          monthlyCost: agent.monthlyCost,
+          agentId: agent.id,
+        },
+      })),
+    );
+
+    const belongsToEdges: { source: string; target: string; deptId: string; agentNodeId: string }[] =
+      organization.departments.flatMap((dept) =>
+        dept.agents.map((agent) => ({
+          source: `agent-${agent.id}`,
+          target: `dept-${dept.id}`,
+          deptId: dept.id,
+          agentNodeId: `agent-${agent.id}`,
+        })),
+      );
+
+    // Add org root node
+    const orgNode: Node = {
+      id: "org-root",
+      type: "organization",
+      position: { x: 0, y: 0 },
+      data: {
+        name: organization.name,
+        departmentCount: organization.departments.length,
+        totalBudget: organization.totalBudget,
+      },
+    };
+
+    // Build dept hierarchy edges using parentId
+    const parentDeptIds = new Set(
+      organization.departments
+        .map((d) => d.parentId)
+        .filter((id): id is string => id !== null),
+    );
+
+    const deptHierarchyEdges: Edge[] = deptNodes.map((n) => {
+      const parentId = (n.data as { parentId: string | null }).parentId;
+      if (parentId) {
+        return {
+          id: `e-dept-${n.id}-parent`,
+          source: `dept-${parentId}`,
+          target: n.id,
+          type: "smoothstep",
+          data: { relationship: "belongs-to" },
         };
+      }
+      return {
+        id: `e-org-${n.id}`,
+        source: "org-root",
+        target: n.id,
+        type: "smoothstep",
+        data: { relationship: "belongs-to" },
+      };
+    });
 
-        // Build dept hierarchy edges using parentId
-        // Top-level depts (no parentId) connect to org root
-        // Child depts connect to their parent dept
-        const deptHierarchyEdges: Edge[] = deptNodes.map((n) => {
-          const parentId = (n.data as { parentId: string | null }).parentId;
-          if (parentId) {
-            return {
-              id: `e-dept-${n.id}-parent`,
-              source: `dept-${parentId}`,
-              target: n.id,
-              type: "smoothstep",
-              data: { relationship: "belongs-to" },
-            };
-          }
-          return {
-            id: `e-org-${n.id}`,
-            source: "org-root",
-            target: n.id,
-            type: "smoothstep",
-            data: { relationship: "belongs-to" },
-          };
-        });
+    // Connect agents to departments (dept→agent direction for tree layout)
+    const deptToAgentEdges: Edge[] = belongsToEdges
+      .filter((e) => !parentDeptIds.has(e.deptId))
+      .map((e) => ({
+        id: `e-${e.source}-${e.target}`,
+        source: e.target,
+        target: e.source,
+        type: "smoothstep",
+        data: { relationship: "belongs-to" },
+      }));
 
-        // Only connect agents to leaf departments (depts that have no children)
-        // For the tree: org → dept-L1 → dept-L2 → ... → dept-leaf → agents
-        const parentDeptIds = new Set(
-          deptNodes
-            .map((n) => (n.data as { parentId: string | null }).parentId)
-            .filter((id): id is string => id !== null),
-        );
+    const nonLeafAgentEdges: Edge[] = belongsToEdges
+      .filter((e) => parentDeptIds.has(e.deptId))
+      .map((e) => ({
+        id: `e-${e.source}-${e.target}`,
+        source: e.target,
+        target: e.source,
+        type: "smoothstep",
+        data: { relationship: "belongs-to" },
+      }));
 
-        // Flip agent→dept edges to dept→agent, only for leaf depts
-        const deptToAgentEdges: Edge[] = belongsToEdges
-          .filter((e) => {
-            // e.target is dept node id like "dept-xxx", e.source is agent node
-            const deptNodeId = e.target;
-            const rawDeptId = deptNodeId.replace("dept-", "");
-            // Include agent if its dept is a leaf (not a parent of any other dept)
-            return !parentDeptIds.has(rawDeptId);
-          })
-          .map((e) => ({
-            ...e,
-            source: e.target,
-            target: e.source,
-            type: "smoothstep",
-          }));
+    const allNodes = [orgNode, ...deptNodes, ...agentNodes];
+    const allEdges = [...deptHierarchyEdges, ...deptToAgentEdges, ...nonLeafAgentEdges];
 
-        // For non-leaf depts, still include agents but connect them
-        const nonLeafAgentEdges: Edge[] = belongsToEdges
-          .filter((e) => {
-            const rawDeptId = e.target.replace("dept-", "");
-            return parentDeptIds.has(rawDeptId);
-          })
-          .map((e) => ({
-            ...e,
-            source: e.target,
-            target: e.source,
-            type: "smoothstep",
-          }));
-
-        const allNodes = [orgNode, ...deptNodes, ...agentNodes];
-        const allEdges = [...deptHierarchyEdges, ...deptToAgentEdges, ...nonLeafAgentEdges];
-
-        const laidOutNodes = applyDagreLayout(allNodes, allEdges);
-        setNodes(laidOutNodes);
-        setEdges(
-          allEdges.map((e) => ({
-            ...e,
-            style: { stroke: "#64748B", strokeWidth: 2 },
-          })),
-        );
-      });
-  }, [currentOrgId, organization, setNodes, setEdges]);
+    const laidOutNodes = applyDagreLayout(allNodes, allEdges);
+    setNodes(laidOutNodes);
+    setEdges(
+      allEdges.map((e) => ({
+        ...e,
+        style: { stroke: "#64748B", strokeWidth: 2 },
+      })),
+    );
+  }, [organization, setNodes, setEdges]);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {

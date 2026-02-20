@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/database/DataTable";
 import { useOrgId } from "@/hooks/useOrgId";
+import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
 
 interface Member {
@@ -36,6 +37,7 @@ function RoleBadge({ role }: { role: string }) {
 export default function SettingsPage() {
   const orgId = useOrgId();
   const router = useRouter();
+  const organization = useAppStore((s) => s.organization);
   const [members, setMembers] = useState<Member[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<string>("member");
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -48,9 +50,9 @@ export default function SettingsPage() {
     message: string;
   } | null>(null);
 
-  // Org settings state
-  const [orgName, setOrgName] = useState("");
-  const [orgBudget, setOrgBudget] = useState<number>(0);
+  // Org settings state — initialized from store
+  const [orgName, setOrgName] = useState(organization.name);
+  const [orgBudget, setOrgBudget] = useState<number>(organization.totalBudget);
   const [orgSaving, setOrgSaving] = useState(false);
   const [orgSaveResult, setOrgSaveResult] = useState<{
     type: "success" | "error";
@@ -64,21 +66,12 @@ export default function SettingsPage() {
   const isAdmin = currentUserRole === "admin";
 
   const fetchData = useCallback(async () => {
-    const [membersRes, orgRes] = await Promise.all([
-      fetch(`/api/organizations/${orgId}/members`),
-      fetch(`/api/organizations/${orgId}`),
-    ]);
+    const membersRes = await fetch(`/api/organizations/${orgId}/members`);
     if (!membersRes.ok) return;
     const membersData = await membersRes.json();
     setMembers(membersData.members);
     setCurrentUserRole(membersData.currentUserRole);
     setInviteCode(membersData.inviteCode);
-
-    if (orgRes.ok) {
-      const orgData = await orgRes.json();
-      setOrgName(orgData.name ?? "");
-      setOrgBudget(orgData.totalBudget ?? 0);
-    }
 
     setLoading(false);
   }, [orgId]);
