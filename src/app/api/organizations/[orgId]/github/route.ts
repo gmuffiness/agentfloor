@@ -14,10 +14,12 @@ export async function GET(
 ) {
   const { orgId } = await params;
 
-  const memberCheck = await requireOrgMember(orgId);
-  if (memberCheck instanceof NextResponse) return memberCheck;
-
   const supabase = getSupabase();
+  const { data: orgCheck } = await supabase.from("organizations").select("visibility").eq("id", orgId).single();
+  if (!orgCheck || orgCheck.visibility !== "public") {
+    const memberCheck = await requireOrgMember(orgId);
+    if (memberCheck instanceof NextResponse) return memberCheck;
+  }
 
   const { data: installations, error } = await supabase
     .from("github_installations")

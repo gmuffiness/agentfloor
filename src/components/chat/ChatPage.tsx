@@ -41,6 +41,7 @@ export function ChatPage({ orgId }: ChatPageProps) {
   const [loading, setLoading] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [waitingForAgent, setWaitingForAgent] = useState<{ agentId: string; agentName: string } | null>(null);
+  const [apiKeysConfigured, setApiKeysConfigured] = useState<boolean | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Derive agents from store instead of separate API call
@@ -68,9 +69,24 @@ export function ChatPage({ orgId }: ChatPageProps) {
     }
   }, [orgId]);
 
+  // Check if API keys are configured
   useEffect(() => {
+    async function checkApiKeys() {
+      try {
+        const res = await fetch(`/api/organizations/${orgId}/api-keys`);
+        if (res.ok) {
+          const data = await res.json();
+          setApiKeysConfigured(data.anthropic || data.openai);
+        } else {
+          setApiKeysConfigured(false);
+        }
+      } catch {
+        setApiKeysConfigured(false);
+      }
+    }
+    checkApiKeys();
     fetchConversations();
-  }, [fetchConversations]);
+  }, [fetchConversations, orgId]);
 
   // Fetch messages when conversation selected
   useEffect(() => {
@@ -357,6 +373,24 @@ export function ChatPage({ orgId }: ChatPageProps) {
 
       {/* Main chat area */}
       <div className="flex flex-1 flex-col">
+        {apiKeysConfigured === false && (
+          <div className="border-b border-yellow-800/50 bg-yellow-900/20 px-6 py-3">
+            <div className="flex items-center gap-3">
+              <svg className="h-5 w-5 shrink-0 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+              <div className="text-sm">
+                <span className="font-medium text-yellow-300">API keys not configured.</span>{" "}
+                <span className="text-yellow-400/80">
+                  To use the chat feature, an admin must set API keys in{" "}
+                  <a href={`/org/${orgId}/settings`} className="underline hover:text-yellow-300">
+                    Settings → API Keys
+                  </a>.
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
         {selectedConv ? (
           <>
             {/* Conversation header with participants */}

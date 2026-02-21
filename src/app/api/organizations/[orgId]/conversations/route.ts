@@ -8,13 +8,17 @@ export async function GET(
 ) {
   const { orgId } = await params;
 
-  const memberCheck = await requireOrgMember(orgId);
-  if (memberCheck instanceof NextResponse) return memberCheck;
+  const supabase = getSupabase();
+
+  // Auth check — skip for public orgs
+  const { data: orgCheck } = await supabase.from("organizations").select("visibility").eq("id", orgId).single();
+  if (!orgCheck || orgCheck.visibility !== "public") {
+    const memberCheck = await requireOrgMember(orgId);
+    if (memberCheck instanceof NextResponse) return memberCheck;
+  }
 
   const { searchParams } = new URL(request.url);
   const agentId = searchParams.get("agentId");
-
-  const supabase = getSupabase();
 
   if (agentId) {
     // Filter: conversations where this agent is a participant

@@ -5,10 +5,13 @@ import { requireOrgMember } from "@/lib/auth";
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
 
-  const memberCheck = await requireOrgMember(orgId);
-  if (memberCheck instanceof NextResponse) return memberCheck;
-
   const supabase = getSupabase();
+
+  const { data: orgCheck } = await supabase.from("organizations").select("visibility").eq("id", orgId).single();
+  if (!orgCheck || orgCheck.visibility !== "public") {
+    const memberCheck = await requireOrgMember(orgId);
+    if (memberCheck instanceof NextResponse) return memberCheck;
+  }
 
   const { data: rows, error } = await supabase
     .from("departments")
@@ -19,21 +22,22 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const result = await Promise.all(
-    (rows ?? []).map(async (d) => {
-      const { count } = await supabase
-        .from("agents")
-        .select("id", { count: "exact", head: true })
-        .eq("dept_id", d.id);
+  const deptIds = (rows ?? []).map((d) => d.id);
+  const { data: agentRows } = deptIds.length > 0
+    ? await supabase.from("agents").select("dept_id").in("dept_id", deptIds)
+    : { data: [] };
 
-      return {
-        ...d,
-        parentId: d.parent_id ?? null,
-        agentCount: count ?? 0,
-        layout: { x: d.layout_x, y: d.layout_y, width: d.layout_w, height: d.layout_h },
-      };
-    })
-  );
+  const countMap = new Map<string, number>();
+  for (const a of agentRows ?? []) {
+    countMap.set(a.dept_id, (countMap.get(a.dept_id) ?? 0) + 1);
+  }
+
+  const result = (rows ?? []).map((d) => ({
+    ...d,
+    parentId: d.parent_id ?? null,
+    agentCount: countMap.get(d.id) ?? 0,
+    layout: { x: d.layout_x, y: d.layout_y, width: d.layout_w, height: d.layout_h },
+  }));
 
   return NextResponse.json(result);
 }

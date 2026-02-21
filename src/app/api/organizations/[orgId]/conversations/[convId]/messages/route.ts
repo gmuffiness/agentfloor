@@ -8,9 +8,14 @@ export async function GET(
 ) {
   const { orgId, convId } = await params;
 
-  const memberCheck = await requireOrgMember(orgId);
-  if (memberCheck instanceof NextResponse) return memberCheck;
   const supabase = getSupabase();
+
+  // Auth check — skip for public orgs
+  const { data: orgCheck } = await supabase.from("organizations").select("visibility").eq("id", orgId).single();
+  if (!orgCheck || orgCheck.visibility !== "public") {
+    const memberCheck = await requireOrgMember(orgId);
+    if (memberCheck instanceof NextResponse) return memberCheck;
+  }
 
   const { data, error } = await supabase
     .from("messages")

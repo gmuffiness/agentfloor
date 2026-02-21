@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
 import { requireOrgMember } from "@/lib/auth";
 
+async function checkPublicOrg(supabase: ReturnType<typeof getSupabase>, orgId: string): Promise<NextResponse | null> {
+  const { data: orgCheck } = await supabase.from("organizations").select("visibility").eq("id", orgId).single();
+  if (!orgCheck || orgCheck.visibility !== "public") {
+    const memberCheck = await requireOrgMember(orgId);
+    if (memberCheck instanceof NextResponse) return memberCheck;
+  }
+  return null;
+}
+
 // Add agent(s) to conversation
 export async function POST(
   request: NextRequest,
@@ -9,8 +18,9 @@ export async function POST(
 ) {
   const { orgId, convId } = await params;
 
-  const memberCheck = await requireOrgMember(orgId);
-  if (memberCheck instanceof NextResponse) return memberCheck;
+  const supabase = getSupabase();
+  const authErr = await checkPublicOrg(supabase, orgId);
+  if (authErr) return authErr;
 
   const body = await request.json();
   const { agentIds } = body as { agentIds: string[] };
@@ -19,7 +29,6 @@ export async function POST(
     return NextResponse.json({ error: "agentIds required" }, { status: 400 });
   }
 
-  const supabase = getSupabase();
   const now = new Date().toISOString();
 
   const rows = agentIds.map((agentId) => ({
@@ -47,8 +56,9 @@ export async function DELETE(
 ) {
   const { orgId, convId } = await params;
 
-  const memberCheck = await requireOrgMember(orgId);
-  if (memberCheck instanceof NextResponse) return memberCheck;
+  const supabase = getSupabase();
+  const authErr = await checkPublicOrg(supabase, orgId);
+  if (authErr) return authErr;
 
   const { searchParams } = new URL(request.url);
   const agentId = searchParams.get("agentId");
@@ -56,8 +66,6 @@ export async function DELETE(
   if (!agentId) {
     return NextResponse.json({ error: "agentId query param required" }, { status: 400 });
   }
-
-  const supabase = getSupabase();
 
   const { error } = await supabase
     .from("conversation_participants")
