@@ -3,7 +3,9 @@
 
 # AgentFactorio
 
-**GitHub for AI Agents** — GitHub이 코드의 중앙 저장소이듯, AgentFactorio는 에이전트의 중앙 저장소. 조직 내 AI 에이전트들의 설정, 상태, 관계를 한 곳에서 관리하는 기업용 에이전트 허브.
+[English](CLAUDE.md) | [한국어](../docs/CLAUDE.ko.md)
+
+**GitHub for AI Agents** — A centralized hub for managing AI agent configurations, status, and relationships across your organization.
 
 ## Project Overview
 
@@ -11,15 +13,15 @@ A Next.js 16 app that visualizes organizational AI agent fleets as a Gather.town
 
 See [docs/vision.md](../docs/vision.md) for service positioning, target users, and competitive landscape.
 
-AgentFactorio는 두 부분으로 나뉩니다:
-- **Hub (Self-hosting)** — 이 레포 자체. 대시보드 웹앱 + API 서버를 배포합니다. 팀/회사에서 인프라 관리자가 한 번만 세팅합니다.
-- **Agent Registration** — 각 개발자가 자기 프로젝트(다른 레포)에서 `/agent-factorio:setup`을 실행해 허브에 에이전트를 등록합니다.
+AgentFactorio has two parts:
+- **Hub (Self-hosting)** — This repo. Deploys the dashboard web app + API server. Set up once per team/company by an infra admin.
+- **Agent Registration** — Individual developers run `/agent-factorio:setup` in their projects (other repos) to register agents to the hub.
 
 See [docs/architecture.md](../docs/architecture.md) for full tech stack, architecture diagram, and directory layout.
 
 ## Development (Hub)
 
-이 레포는 Hub 서버입니다. 아래는 Hub를 로컬에서 실행하기 위한 세팅입니다.
+This repo is the Hub server. Below is the setup for running locally.
 
 ```bash
 pnpm install
@@ -30,25 +32,25 @@ pnpm lint         # ESLint
 
 ### Supabase Setup
 1. Create a Supabase project at https://supabase.com
-2. `npx supabase login` — Supabase 계정 인증
-3. `npx supabase link --project-ref <project-id>` — 프로젝트 연결
-4. `npx supabase db push` — 마이그레이션 실행 (테이블 생성)
+2. `npx supabase login` — Authenticate with Supabase
+3. `npx supabase link --project-ref <project-id>` — Link project
+4. `npx supabase db push` — Run migrations (create tables)
 5. Copy project URL and service role key to `.env`:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
 
-### Supabase CLI (DB 관리)
-DB 스키마 변경이 필요할 때는 Supabase CLI를 사용합니다:
+### Supabase CLI (DB Management)
+Use Supabase CLI when DB schema changes are needed:
 ```bash
-npx supabase migration new <name>   # 새 마이그레이션 파일 생성 (supabase/migrations/)
-npx supabase db push                # 마이그레이션을 원격 DB에 적용
-npx supabase db reset               # 로컬 DB 초기화 (모든 마이그레이션 재실행)
-npx supabase db diff                # 원격 DB와 로컬 스키마 차이 확인
-npx supabase gen types typescript --linked > src/types/supabase.ts  # DB 타입 자동 생성
+npx supabase migration new <name>   # Create new migration file (supabase/migrations/)
+npx supabase db push                # Apply migrations to remote DB
+npx supabase db reset               # Reset local DB (re-run all migrations)
+npx supabase db diff                # Check schema diff with remote DB
+npx supabase gen types typescript --linked > src/types/supabase.ts  # Auto-generate DB types
 ```
-- 마이그레이션 파일은 `supabase/migrations/` 디렉토리에 저장
-- 새 테이블/컬럼 추가 시 반드시 마이그레이션 파일로 관리 (수동 SQL 편집 금지)
-- **DB 스키마 변경 시 반드시 `npx supabase db push` 실행** — 마이그레이션 파일 생성만으로는 DB에 반영되지 않음
+- Migration files are stored in `supabase/migrations/`
+- Always manage new tables/columns via migration files (no manual SQL edits)
+- **Always run `npx supabase db push` after schema changes** — creating migration files alone does not apply them
 
 ## Key Conventions
 
@@ -61,6 +63,7 @@ npx supabase gen types typescript --linked > src/types/supabase.ts  # DB 타입 
 ### Architecture
 - **Pages** go in `src/app/org/[orgId]/{route}/page.tsx` as `"use client"` components
 - **API routes** go in `src/app/api/organizations/[orgId]/{resource}/route.ts`
+- **CLI API routes** go in `src/app/api/cli/{resource}/route.ts` — use `requireCliAuth()` from `src/lib/cli-auth.ts`
 - **Auth**: Supabase Auth via middleware (`src/middleware.ts`). API routes use `requireAuth()` / `requireOrgMember()` / `requireOrgAdmin()` from `src/lib/auth.ts`
 - **Components** organized by domain: `spatial/`, `graph/`, `org-chart/`, `panels/`, `charts/`, `database/`, `chat/`, `ui/`
 - **State** via Zustand store (`src/stores/app-store.ts`) — single store, no providers needed
@@ -69,10 +72,11 @@ npx supabase gen types typescript --linked > src/types/supabase.ts  # DB 타입 
 
 ### Data Model
 - Organization (with invite code) → OrgMember[] + Department[] → Agent[] → Skill[], Plugin[], McpTool[]
-- `org_members`: email 기반 식별 (`email` 컬럼), Supabase Auth 연동 시 `user_id` 사용
-- `agents`: `registered_by` (FK → `org_members.id`) — 어떤 멤버가 등록했는지 추적
+- `org_members`: email-based identification (`email` column), `user_id` for Supabase Auth
+- `agents`: `registered_by` (FK → `org_members.id`) — tracks which member registered it
+- `cli_auth_tokens`: persistent CLI auth tokens issued on login, used for `org` and `agent` CLI commands
 - Types defined in `src/types/index.ts`
-- DB schema across 9 migrations in `supabase/migrations/` (PostgreSQL)
+- DB schema across migrations in `supabase/migrations/` (PostgreSQL)
 - Mock data in `src/data/mock-data.ts` for development
 
 See [docs/data-model.md](../docs/data-model.md) for detailed entity reference.
@@ -80,8 +84,11 @@ See [docs/data-model.md](../docs/data-model.md) for detailed entity reference.
 ### Organization & Agent Registration
 - `POST /api/organizations` — create org (auto-generates 6-char invite code)
 - `POST /api/organizations/join` — join org via invite code
+- `POST /api/cli/login` — CLI login with email verification, org create/join, auth token issuance
 - `POST /api/cli/push` — register/update agent with vendor, model, MCP tools, skills
-- `POST /api/register` — legacy agent registration (prefer `cli/push`)
+- `GET /api/cli/orgs` — list user's organizations (Bearer token auth)
+- `GET /api/cli/agents` — list agents in an org (Bearer token auth)
+- `GET/PATCH/DELETE /api/cli/agents/[id]` — agent CRUD (Bearer token auth)
 - Session start hook (`scripts/session-start.mjs`) sends heartbeat to mark agent active
 
 ### UI Layout
@@ -103,21 +110,23 @@ See [docs/api-reference.md](../docs/api-reference.md) for endpoint reference.
 - For Vercel deployment, set env vars in the Vercel dashboard (Settings → Environment Variables)
 
 ### CLI (`npx agent-factorio`)
-- `agent-factorio login` — 허브 연결 + 이메일 인증(magic link) + 조직 참여/생성. 글로벌 config에 `memberId`, `userId` 저장 (`~/.agent-factorio/config.json`)
-- `agent-factorio push` — 현재 프로젝트의 에이전트 설정을 허브에 push (자동 감지: git, skills, MCP, CLAUDE.md). `memberId`를 `registered_by`로 기록
-- `agent-factorio status` — 현재 프로젝트 등록 상태 확인
-- `agent-factorio whoami` — 로그인 정보 확인
-- `agent-factorio logout` — 글로벌 config 삭제
-- CLI 소스: `cli/` 디렉토리 (bin.mjs, commands/, lib/)
-- CLI 전용 API: `POST /api/cli/login`, `POST /api/cli/push`
-- **CLI 코드 변경 시 반드시 `cli/package.json` 버전 bump 후 push** — 안 하면 npm 배포가 skip됨
+- `agent-factorio login` — Connect to hub + email verification (magic link) + org create/join. Saves `memberId`, `userId`, `authToken` to global config (`~/.agent-factorio/config.json`)
+- `agent-factorio push` — Push current project's agent config to hub (auto-detects: git, skills, MCP, CLAUDE.md). Records `memberId` as `registered_by`
+- `agent-factorio org list/create/join/switch/info` — Organization management
+- `agent-factorio agent list/info/edit/pull/delete` — Agent CRUD from terminal
+- `agent-factorio status` — Current project registration status
+- `agent-factorio whoami` — Login info
+- `agent-factorio logout` — Remove global config
+- CLI source: `cli/` directory (bin.js, commands/, lib/)
+- CLI APIs: `POST /api/cli/login`, `POST /api/cli/push`, `GET /api/cli/orgs`, `GET/PATCH/DELETE /api/cli/agents`
+- **Always bump `cli/package.json` version before pushing CLI code changes** — otherwise npm publish is skipped
 
 See [docs/cli.md](../docs/cli.md) for full CLI manual, config format, and troubleshooting.
-See [docs/publishing.md](../docs/publishing.md) for npm/Vercel 배포 가이드.
+See [docs/publishing.md](../docs/publishing.md) for npm/Vercel deployment guide.
 
-### Plugin System (Agent Registration — 각 개발자의 프로젝트에서 실행)
-- `/agent-factorio:setup` — 다른 프로젝트에서 실행하는 인터랙티브 위자드. 허브 URL 입력 → 조직 생성/참여 → 에이전트 등록
-- Config stored in `.agent-factorio/config.json` (gitignored, 각 프로젝트 로컬에 저장)
+### Plugin System (Agent Registration — runs in each developer's project)
+- `/agent-factorio:setup` — Interactive wizard run from other projects. Enter hub URL → create/join org → register agent
+- Config stored in `.agent-factorio/config.json` (gitignored, local to each project)
 - Session hook sends heartbeat on every Claude Code session start
 - Plugin manifest at `.claude-plugin/plugin.json`
 
