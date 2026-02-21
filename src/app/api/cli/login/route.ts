@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase, getSupabaseAuth } from "@/db/supabase";
+import { createCliAuthToken } from "@/lib/cli-auth";
 import { randomUUID } from "crypto";
 
 function generateInviteCode(): string {
@@ -202,11 +203,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const joinAuthToken = await createCliAuthToken(userId, memberId, email);
+
     return NextResponse.json({
       orgId: org.id,
       orgName: org.name,
       inviteCode: org.invite_code,
       memberId,
+      authToken: joinAuthToken,
     });
   }
 
@@ -250,8 +254,10 @@ export async function POST(request: NextRequest) {
       joined_at: now,
     });
 
+    const createAuthToken = await createCliAuthToken(userId, memberId, email);
+
     return NextResponse.json(
-      { orgId: id, orgName, inviteCode: code, memberId },
+      { orgId: id, orgName, inviteCode: code, memberId, authToken: createAuthToken },
       { status: 201 },
     );
   }

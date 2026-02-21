@@ -46,7 +46,7 @@ export async function loginCommand() {
   const defaultUrl = existing?.organizations?.[0]?.hubUrl || "";
 
   // 1. Hub URL
-  const hubUrl = await ask("AgentFactorio Hub URL", defaultUrl || "http://localhost:3000");
+  const hubUrl = await ask("AgentFactorio Hub URL", defaultUrl || "https://agent-factorio.vercel.app");
   if (!hubUrl) {
     error("Hub URL is required.");
     process.exit(1);
@@ -100,11 +100,11 @@ export async function loginCommand() {
 
   // 6. Create or Join
   const { index: actionIdx } = await choose("Create or join an organization?", [
-    "Join existing (invite code)",
     "Create new",
+    "Join existing (invite code)",
   ]);
 
-  if (actionIdx === 1) {
+  if (actionIdx === 0) {
     // Create new org
     const orgName = await ask("Organization name");
     if (!orgName) {
@@ -121,8 +121,8 @@ export async function loginCommand() {
       process.exit(1);
     }
 
-    const { orgId, orgName: name, inviteCode, memberId } = res.data;
-    upsertOrg({ hubUrl, orgId, orgName: name, inviteCode, memberName, email, memberId, userId });
+    const { orgId, orgName: name, inviteCode, memberId, authToken } = res.data;
+    upsertOrg({ hubUrl, orgId, orgName: name, inviteCode, memberName, email, memberId, userId, authToken });
 
     success(`Created "${name}" (${orgId})`);
     info(`Invite code: ${inviteCode} — share with your team!`);
@@ -143,8 +143,8 @@ export async function loginCommand() {
       process.exit(1);
     }
 
-    const { orgId, orgName, memberId } = res.data;
-    upsertOrg({ hubUrl, orgId, orgName, inviteCode: inviteCode.toUpperCase(), memberName, email, memberId, userId });
+    const { orgId, orgName, memberId, authToken } = res.data;
+    upsertOrg({ hubUrl, orgId, orgName, inviteCode: inviteCode.toUpperCase(), memberName, email, memberId, userId, authToken });
 
     success(`Joined "${orgName}" (${orgId})`);
   }

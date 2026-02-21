@@ -13,7 +13,7 @@ const LOCAL_CONFIG_NAME = "config.json";
 // --- Global config ---
 
 /**
- * @typedef {{ hubUrl: string, orgId: string, orgName: string, inviteCode: string, memberName?: string, email?: string, memberId?: string, userId?: string }} OrgEntry
+ * @typedef {{ hubUrl: string, orgId: string, orgName: string, inviteCode: string, memberName?: string, email?: string, memberId?: string, userId?: string, authToken?: string }} OrgEntry
  * @typedef {{ organizations: OrgEntry[], defaultOrg?: string }} GlobalConfig
  */
 

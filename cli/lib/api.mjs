@@ -2,21 +2,25 @@
  * Hub API call helper
  */
 
+import { getDefaultOrg } from "./config.mjs";
+
 /**
  * Make an API request to the AgentFactorio hub
  * @param {string} hubUrl - Base URL of the hub
  * @param {string} path - API path (e.g. "/api/cli/login")
- * @param {{ method?: string, body?: unknown }} [options]
+ * @param {{ method?: string, body?: unknown, authToken?: string }} [options]
  * @returns {Promise<{ ok: boolean, status: number, data: unknown }>}
  */
 export async function apiCall(hubUrl, path, options = {}) {
   const url = `${hubUrl.replace(/\/$/, "")}${path}`;
   const method = options.method || (options.body ? "POST" : "GET");
 
-  const fetchOptions = {
-    method,
-    headers: { "Content-Type": "application/json" },
-  };
+  const headers = { "Content-Type": "application/json" };
+  if (options.authToken) {
+    headers["Authorization"] = `Bearer ${options.authToken}`;
+  }
+
+  const fetchOptions = { method, headers };
 
   if (options.body) {
     fetchOptions.body = JSON.stringify(options.body);
@@ -31,6 +35,23 @@ export async function apiCall(hubUrl, path, options = {}) {
   }
 
   return { ok: res.ok, status: res.status, data };
+}
+
+/**
+ * Make an authenticated API call using the default org's hubUrl and authToken.
+ * @param {string} path - API path
+ * @param {{ method?: string, body?: unknown }} [options]
+ * @returns {Promise<{ ok: boolean, status: number, data: unknown }>}
+ */
+export async function authApiCall(path, options = {}) {
+  const org = getDefaultOrg();
+  if (!org) {
+    throw new Error("Not logged in. Run `agent-factorio login` first.");
+  }
+  if (!org.authToken) {
+    throw new Error("Auth token missing. Run `agent-factorio login` again to get a token.");
+  }
+  return apiCall(org.hubUrl, path, { ...options, authToken: org.authToken });
 }
 
 /**
