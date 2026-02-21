@@ -137,7 +137,7 @@ export default async function HomePage() {
       <nav className="fixed top-0 z-50 w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-lg">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-7 w-7" />
+            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-9 w-9" />
             <span className="text-lg font-bold tracking-tight">AgentFactorio</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -188,10 +188,10 @@ export default async function HomePage() {
                   01
                 </div>
                 <div className="flex-1 space-y-3">
-                  <h3 className="font-semibold">Login &amp; join your organization</h3>
+                  <h3 className="font-semibold">Login &amp; create your organization</h3>
                   <CodeBlock>npx agent-factorio login</CodeBlock>
                   <p className="text-sm text-slate-400">
-                    Email verification, then create or join an org with an invite code.
+                    Email verification, then create a new org or join one with an invite code.
                   </p>
                 </div>
               </div>
@@ -204,7 +204,20 @@ export default async function HomePage() {
                   <h3 className="font-semibold">Push your agent</h3>
                   <CodeBlock>npx agent-factorio push</CodeBlock>
                   <p className="text-sm text-slate-400">
-                    Auto-detects git, skills, MCP tools, and CLAUDE.md from your project.
+                    Auto-detects git repo, skills, MCP tools, and CLAUDE.md from your project.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600/20 text-sm font-bold text-emerald-400">
+                  03
+                </div>
+                <div className="flex-1 space-y-3">
+                  <h3 className="font-semibold">Manage from CLI</h3>
+                  <CodeBlock>{`npx agent-factorio org list      # your organizations\nnpx agent-factorio agent list    # agents in current org\nnpx agent-factorio agent info    # agent details`}</CodeBlock>
+                  <p className="text-sm text-slate-400">
+                    List, edit, sync, and delete agents — all without leaving the terminal.
                   </p>
                 </div>
               </div>
@@ -325,7 +338,7 @@ export default async function HomePage() {
       <footer className="border-t border-slate-800/60 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 text-sm text-slate-500 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2">
-            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-5 w-5" />
+            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-7 w-7" />
             <span>AgentFactorio</span>
           </div>
           <div className="flex items-center gap-6">

@@ -87,7 +87,7 @@ export default function DashboardPage() {
       <header className="flex items-center justify-between px-6 py-12">
         <div />
         <div className="flex items-center gap-3">
-          <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-9 w-9" />
+          <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-12 w-12" />
           <h1 className="text-3xl font-bold">AgentFactorio</h1>
         </div>
         <div className="flex items-center gap-3">

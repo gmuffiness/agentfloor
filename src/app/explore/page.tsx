@@ -144,7 +144,7 @@ export default async function ExplorePage({
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-2.5">
-              <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-7 w-7" />
+              <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-9 w-9" />
               <span className="text-lg font-bold tracking-tight">AgentFactorio</span>
             </Link>
             <Link
@@ -275,7 +275,7 @@ export default async function ExplorePage({
       <footer className="border-t border-slate-800/60 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 text-sm text-slate-500 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2">
-            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-5 w-5" />
+            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-7 w-7" />
             <span>AgentFactorio</span>
           </div>
           <div className="flex items-center gap-6">
