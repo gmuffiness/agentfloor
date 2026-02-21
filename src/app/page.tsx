@@ -185,10 +185,10 @@ export default async function HomePage() {
         <section className="relative pb-16">
           <div className="mx-auto max-w-4xl px-6">
             <h2 className="mb-2 text-center text-2xl font-bold tracking-tight">
-              Featured Organizations
+              Starter Templates
             </h2>
             <p className="mb-8 text-center text-sm text-slate-400">
-              Explore how teams organize their AI agent fleets
+              See how teams structure their agent fleets — fork a template to kickstart your org
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
               {publicOrgs.map((org) => (
@@ -201,11 +201,16 @@ export default async function HomePage() {
                     <h3 className="text-lg font-semibold group-hover:text-emerald-400">
                       {org.name}
                     </h3>
-                    {org.domain && (
-                      <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
-                        {org.domain}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                        Template
                       </span>
-                    )}
+                      {org.domain && (
+                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                          {org.domain}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {org.description && (
                     <p className="mt-2 text-sm leading-relaxed text-slate-400">
@@ -252,19 +257,24 @@ export default async function HomePage() {
                       </span>
                     )}
                     <span className="ml-auto flex items-center gap-1 text-sm font-medium text-emerald-400 opacity-0 transition-opacity group-hover:opacity-100">
-                      View Organization
+                      Preview &amp; Fork
                       <span aria-hidden="true">&rarr;</span>
                     </span>
                   </div>
                 </Link>
               ))}
             </div>
+            <p className="mb-6 text-center text-xs text-slate-500">
+              These are public template organizations. Your org can be{" "}
+              <span className="text-slate-400">public</span> or{" "}
+              <span className="text-slate-400">private</span> — you choose.
+            </p>
             <div className="text-center">
               <Link
                 href="/explore"
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-slate-800 hover:border-slate-600"
               >
-                Browse all organizations
+                Browse all templates
                 <span aria-hidden="true">&rarr;</span>
               </Link>
             </div>
