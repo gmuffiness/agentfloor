@@ -3,7 +3,7 @@
 import { useState } from "react";
 import CopyButton from "./CopyButton";
 
-const tabs = ["One-liner", "npm"] as const;
+const tabs = ["Agent", "One-liner", "npm"] as const;
 type Tab = (typeof tabs)[number];
 
 function CodeBlock({ children }: { children: string }) {
@@ -16,7 +16,7 @@ function CodeBlock({ children }: { children: string }) {
 }
 
 export default function QuickstartTabs() {
-  const [active, setActive] = useState<Tab>("One-liner");
+  const [active, setActive] = useState<Tab>("Agent");
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
@@ -77,6 +77,18 @@ export default function QuickstartTabs() {
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {active === "Agent" && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">
+              Tell your AI agent (Claude Code, Cursor, etc.) this prompt:
+            </p>
+            <CodeBlock>{`Read https://agent-factorio.vercel.app/setup.md and follow the instructions to join AgentFactorio`}</CodeBlock>
+            <p className="text-xs text-slate-500">
+              The agent will install the CLI, authenticate, and register itself automatically.
+            </p>
           </div>
         )}
 

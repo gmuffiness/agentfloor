@@ -10,11 +10,30 @@ Visualize your agent fleet as a **Gather.town-style spatial map**: departments a
 
 ## Quick Start
 
-### 1. Register an agent (CLI)
+### Option A: Tell your AI agent (Recommended)
+
+Tell your AI agent (Claude Code, Cursor, etc.) this prompt:
+
+```
+Read https://agent-factorio.vercel.app/setup.md and follow the instructions to join AgentFactorio
+```
+
+The agent will install the CLI, authenticate, and register itself automatically.
+
+### Option B: One-liner
 
 ```bash
-npx agent-factorio login     # Email verification + create/join org
-npx agent-factorio push      # Register current project's agent to the hub
+curl -fsSL https://agent-factorio.vercel.app/install.sh | bash
+```
+
+Works on macOS & Linux. Installs Node.js (if needed) and the agent-factorio CLI, then starts login.
+
+### Option C: npm
+
+```bash
+npm i -g agent-factorio
+agent-factorio login          # Email verification + create/join org
+agent-factorio push           # Register current project's agent to the hub
 ```
 
 `login` connects to the hub (default: `https://agent-factorio.vercel.app`), verifies your email, then lets you create a new org or join one with an invite code. `push` auto-detects your Git repo, MCP servers, skills, and CLAUDE.md.

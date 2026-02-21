@@ -152,9 +152,9 @@ export default async function HomePage() {
 
         <div className="relative mx-auto max-w-3xl px-6 pb-12 pt-24 text-center sm:pt-32">
           <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-tight">
-            The central hub for your{" "}
+            GitHub for{" "}
             <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              AI agents
+              AI Agents
             </span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg text-slate-400">
