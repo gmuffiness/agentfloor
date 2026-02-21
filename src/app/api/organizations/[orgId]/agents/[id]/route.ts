@@ -169,6 +169,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (body.humanId !== undefined) updates.human_id = body.humanId;
   if (body.runtimeType !== undefined) updates.runtime_type = body.runtimeType;
   if (body.gatewayUrl !== undefined) updates.gateway_url = body.gatewayUrl;
+  if (body.posX !== undefined) updates.pos_x = body.posX;
+  if (body.posY !== undefined) updates.pos_y = body.posY;
 
   if (Object.keys(updates).length > 0) {
     await supabase.from("agents").update(updates).eq("id", id);

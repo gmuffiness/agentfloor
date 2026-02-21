@@ -314,7 +314,7 @@ async function loadOrganization(orgId: string): Promise<Organization | null> {
   });
 
   return {
-    id: org.id, name: org.name, totalBudget: org.total_budget, visibility: org.visibility ?? "private", departments: depts,
+    id: org.id, name: org.name, domain: org.domain ?? "", totalBudget: org.total_budget, visibility: org.visibility ?? "private", departments: depts,
   };
 }
 

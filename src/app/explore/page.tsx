@@ -8,6 +8,7 @@ interface PublicOrg {
   id: string;
   name: string;
   description: string;
+  domain: string;
   departmentCount: number;
   agentCount: number;
   skillCount: number;
@@ -21,7 +22,7 @@ async function fetchPublicOrgs(search?: string): Promise<PublicOrg[]> {
 
   let query = supabase
     .from("organizations")
-    .select("id, name, description, visibility")
+    .select("id, name, description, domain, visibility")
     .eq("visibility", "public");
 
   if (search) {
@@ -65,6 +66,7 @@ async function fetchPublicOrgs(search?: string): Promise<PublicOrg[]> {
       id: org.id,
       name: org.name,
       description: org.description ?? "",
+      domain: org.domain ?? "",
       departmentCount: 0,
       agentCount: 0,
       skillCount: 0,
@@ -120,6 +122,7 @@ async function fetchPublicOrgs(search?: string): Promise<PublicOrg[]> {
     id: org.id,
     name: org.name,
     description: org.description ?? "",
+    domain: org.domain ?? "",
     departmentCount: deptsByOrg.get(org.id) ?? 0,
     agentCount: agentsByOrg.get(org.id) ?? 0,
     skillCount: skillCountByOrg.get(org.id)?.size ?? 0,
@@ -213,9 +216,16 @@ export default async function ExplorePage({
                   className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-all hover:border-emerald-500/40 hover:bg-slate-900"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-lg font-semibold group-hover:text-emerald-400">
-                      {org.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold group-hover:text-emerald-400">
+                        {org.name}
+                      </h3>
+                      {org.domain && (
+                        <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                          {org.domain}
+                        </span>
+                      )}
+                    </div>
                     {org.forkCount > 0 && (
                       <span className="flex shrink-0 items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

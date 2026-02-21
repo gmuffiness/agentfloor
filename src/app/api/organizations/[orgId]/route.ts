@@ -211,6 +211,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const result: Organization = {
     id: org.id,
     name: org.name,
+    domain: org.domain ?? "",
     totalBudget: org.total_budget,
     visibility: org.visibility ?? "private",
     departments: depts,
@@ -227,10 +228,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const adminCheck = await requireOrgAdmin(orgId);
   if (adminCheck instanceof NextResponse) return adminCheck;
 
-  const body = await request.json() as { name?: string; totalBudget?: number; visibility?: string };
+  const body = await request.json() as { name?: string; totalBudget?: number; visibility?: string; domain?: string };
 
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
+  if (body.domain !== undefined) updates.domain = body.domain;
   if (body.totalBudget !== undefined) updates.total_budget = body.totalBudget;
   if (body.visibility !== undefined && (body.visibility === "public" || body.visibility === "private")) {
     updates.visibility = body.visibility;

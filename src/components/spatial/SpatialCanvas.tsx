@@ -398,12 +398,27 @@ function findSpawnPoint(rooms: RoomCollider[]): { x: number; y: number } {
   };
 }
 
+// Drag state tracked outside React to avoid re-renders during pointer moves
+interface DragState {
+  active: boolean;
+  avatar: Container | null;
+  agent: Agent | null;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  moved: boolean;
+}
+
+const DRAG_THRESHOLD = 5; // px — movement below this counts as a click
+
 export default function SpatialCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
   const playerRef = useRef<PlayerCharacter | null>(null);
   const keysRef = useRef<PlayerKeys>({ up: false, down: false, left: false, right: false, interact: false });
+  const dragRef = useRef<DragState>({ active: false, avatar: null, agent: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false });
   const [nearbyAgentName, setNearbyAgentName] = useState<string | null>(null);
   const [dialogueAgent, setDialogueAgent] = useState<Agent | null>(null);
   const dialogueOpenRef = useRef(false);
@@ -614,11 +629,34 @@ export default function SpatialCanvas() {
           viewport.addChild(avatar);
           avatarContainers.push(avatar as Container & { _baseY: number; _agentStatus: string });
 
-          agentPositionMap.push({
+          const posEntry = {
             agent,
             x: agent.position.x,
             y: agent.position.y,
             container: avatar,
+          };
+          agentPositionMap.push(posEntry);
+
+          // === Drag-and-drop handlers ===
+          avatar.eventMode = "static";
+          avatar.cursor = "grab";
+
+          avatar.on("pointerdown", (e) => {
+            e.stopPropagation();
+            const worldPos = viewport.toWorld(e.global.x, e.global.y);
+            dragRef.current = {
+              active: true,
+              avatar,
+              agent,
+              startX: worldPos.x,
+              startY: worldPos.y,
+              offsetX: avatar.x - worldPos.x,
+              offsetY: avatar.y - worldPos.y,
+              moved: false,
+            };
+            avatar.cursor = "grabbing";
+            avatar.zIndex = 100;
+            avatar.scale.set(1.15);
           });
         }
       }
@@ -629,6 +667,78 @@ export default function SpatialCanvas() {
         anim.container.zIndex = 5; // above ground, below agents
         viewport.addChild(anim.container);
       }
+
+      // === Global drag move/up handlers ===
+      viewport.on("globalpointermove", (e) => {
+        const drag = dragRef.current;
+        if (!drag.active || !drag.avatar) return;
+        const worldPos = viewport.toWorld(e.global.x, e.global.y);
+        const dx = worldPos.x - drag.startX;
+        const dy = worldPos.y - drag.startY;
+        if (!drag.moved && Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+          drag.moved = true;
+        }
+        if (drag.moved) {
+          drag.avatar.x = worldPos.x + drag.offsetX;
+          drag.avatar.y = worldPos.y + drag.offsetY;
+          // Update agentPositionMap entry so proximity detection uses new position
+          const entry = agentPositionMap.find((e) => e.agent.id === drag.agent!.id);
+          if (entry) {
+            entry.x = drag.avatar.x;
+            entry.y = drag.avatar.y;
+          }
+        }
+      });
+
+      viewport.on("pointerup", () => {
+        const drag = dragRef.current;
+        if (!drag.active || !drag.avatar) return;
+        const avatar = drag.avatar as Container & { _baseY: number };
+        const agent = drag.agent!;
+        // Restore visual state
+        avatar.cursor = "grab";
+        avatar.zIndex = 10;
+        avatar.scale.set(1);
+        if (drag.moved) {
+          // Update _baseY so bobbing animation uses new position
+          avatar._baseY = avatar.y;
+          // Update agent position in data model
+          agent.position.x = avatar.x;
+          agent.position.y = avatar.y;
+          // Persist to DB (fire-and-forget)
+          const orgId = organization.id;
+          fetch(`/api/organizations/${orgId}/agents/${agent.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ posX: avatar.x, posY: avatar.y }),
+          });
+        } else {
+          // Short click — select agent (existing behavior)
+          useAppStore.getState().selectAgent(agent.id);
+        }
+        dragRef.current = { active: false, avatar: null, agent: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
+      });
+
+      viewport.on("pointerupoutside", () => {
+        const drag = dragRef.current;
+        if (!drag.active || !drag.avatar) return;
+        // Restore visual state even if pointer left canvas
+        drag.avatar.cursor = "grab";
+        drag.avatar.zIndex = 10;
+        drag.avatar.scale.set(1);
+        if (drag.moved) {
+          const agent = drag.agent!;
+          agent.position.x = drag.avatar.x;
+          agent.position.y = drag.avatar.y;
+          const orgId = organization.id;
+          fetch(`/api/organizations/${orgId}/agents/${agent.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ posX: drag.avatar.x, posY: drag.avatar.y }),
+          });
+        }
+        dragRef.current = { active: false, avatar: null, agent: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
+      });
 
       // === Create Player Character ===
       const sheetTexture = getSpriteSheetTexture()!;
@@ -674,8 +784,10 @@ export default function SpatialCanvas() {
         const newName = nearby ? nearby.agent.name : null;
         setNearbyAgentName((prev) => prev === newName ? prev : newName);
 
-        // Agent idle/error animations
+        // Agent idle/error animations (skip for currently-dragged avatar)
+        const draggedAvatar = dragRef.current.active ? dragRef.current.avatar : null;
         for (const avatar of avatarContainers) {
+          if (avatar === draggedAvatar) continue;
           if (avatar._agentStatus === "active") {
             avatar.y = avatar._baseY + Math.sin(elapsed * 2.5 + avatar._baseY) * 3;
           } else if (avatar._agentStatus === "error") {

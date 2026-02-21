@@ -108,6 +108,7 @@ export interface Department {
 export interface Organization {
   id: string;
   name: string;
+  domain: string;
   totalBudget: number;
   visibility: OrgVisibility;
   inviteCode?: string;

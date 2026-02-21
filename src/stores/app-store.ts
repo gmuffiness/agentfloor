@@ -47,6 +47,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   organization: {
     id: "",
     name: "",
+    domain: "",
     totalBudget: 0,
     visibility: "private",
     departments: [],

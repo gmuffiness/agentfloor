@@ -7,6 +7,7 @@ interface PublicOrg {
   id: string;
   name: string;
   description: string;
+  domain: string;
   departmentCount: number;
   agentCount: number;
   skillCount: number;
@@ -21,7 +22,7 @@ async function fetchPublicOrgs(): Promise<PublicOrg[]> {
 
   const { data: orgs, error } = await supabase
     .from("organizations")
-    .select("id, name, description, visibility")
+    .select("id, name, description, domain, visibility")
     .eq("visibility", "public");
 
   if (error || !orgs || orgs.length === 0) return [];
@@ -46,6 +47,7 @@ async function fetchPublicOrgs(): Promise<PublicOrg[]> {
       id: org.id,
       name: org.name,
       description: org.description ?? "",
+      domain: org.domain ?? "",
       departmentCount: 0,
       agentCount: 0,
       skillCount: 0,
@@ -111,6 +113,7 @@ async function fetchPublicOrgs(): Promise<PublicOrg[]> {
     id: org.id,
     name: org.name,
     description: org.description ?? "",
+    domain: org.domain ?? "",
     departmentCount: deptsByOrg.get(org.id) ?? 0,
     agentCount: agentsByOrg.get(org.id) ?? 0,
     skillCount: skillCountByOrg.get(org.id)?.size ?? 0,
@@ -194,9 +197,16 @@ export default async function HomePage() {
                   href={`/org/${org.id}/overview`}
                   className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-all hover:border-emerald-500/40 hover:bg-slate-900"
                 >
-                  <h3 className="text-lg font-semibold group-hover:text-emerald-400">
-                    {org.name}
-                  </h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-lg font-semibold group-hover:text-emerald-400">
+                      {org.name}
+                    </h3>
+                    {org.domain && (
+                      <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                        {org.domain}
+                      </span>
+                    )}
+                  </div>
                   {org.description && (
                     <p className="mt-2 text-sm leading-relaxed text-slate-400">
                       {org.description}

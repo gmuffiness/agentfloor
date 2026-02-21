@@ -96,7 +96,7 @@ export function DataTable<T extends Record<string, unknown>>({
           <tbody className="divide-y divide-slate-700">
             {sorted.map((row, i) => (
               <tr
-                key={i}
+                key={(row.id as string) ?? i}
                 onClick={() => onRowClick?.(row)}
                 className={`bg-slate-900 transition-colors ${onRowClick ? "cursor-pointer hover:bg-slate-800" : ""}`}
               >

@@ -34,6 +34,7 @@ export async function GET() {
   const orgs = (data ?? []).map((o) => ({
     id: o.id,
     name: o.name,
+    domain: o.domain ?? "",
     totalBudget: o.total_budget,
     visibility: o.visibility ?? "private",
     inviteCode: o.invite_code,
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   const { user } = authResult;
   const body = await request.json();
-  const { name, budget, visibility } = body;
+  const { name, budget, visibility, domain } = body;
 
   if (!name) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
   const { error: orgError } = await supabase.from("organizations").insert({
     id,
     name,
+    domain: domain ?? "",
     total_budget: budget ?? 0,
     visibility: visibility === "public" ? "public" : "private",
     invite_code: inviteCode,
