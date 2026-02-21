@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
 import { getInstallationInfo } from "@/lib/github-app";
+import { verifyGitHubState } from "@/lib/github-state";
 
 /**
  * GitHub App installation callback.
@@ -22,11 +23,20 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Verify CSRF state parameter
+  const orgId = verifyGitHubState(state);
+  if (!orgId) {
+    return NextResponse.json(
+      { error: "Invalid or expired state parameter" },
+      { status: 403 }
+    );
+  }
+
   // Only process install/update actions
   if (setupAction === "request") {
     // User requested access but org admin hasn't approved yet
     return NextResponse.redirect(
-      new URL(`/org/${state}/settings?github=requested`, request.url)
+      new URL(`/org/${orgId}/settings?github=requested`, request.url)
     );
   }
 
@@ -40,8 +50,8 @@ export async function GET(request: NextRequest) {
     // Upsert the installation record
     await supabase.from("github_installations").upsert(
       {
-        id: `ghi-${state}-${installationId}`,
-        org_id: state,
+        id: `ghi-${orgId}-${installationId}`,
+        org_id: orgId,
         installation_id: Number(installationId),
         github_account_login: info.account_login,
         github_account_type: info.account_type,
@@ -53,12 +63,12 @@ export async function GET(request: NextRequest) {
 
     // Redirect back to settings with success indicator
     return NextResponse.redirect(
-      new URL(`/org/${state}/settings?github=connected`, request.url)
+      new URL(`/org/${orgId}/settings?github=connected`, request.url)
     );
   } catch (err) {
     console.error("[github-callback] Error:", err);
     return NextResponse.redirect(
-      new URL(`/org/${state}/settings?github=error`, request.url)
+      new URL(`/org/${orgId}/settings?github=error`, request.url)
     );
   }
 }

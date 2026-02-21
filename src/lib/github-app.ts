@@ -7,6 +7,7 @@
 
 import crypto from "node:crypto";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { createGitHubState } from "@/lib/github-state";
 
 /**
  * Generate a JWT for GitHub App authentication.
@@ -115,7 +116,7 @@ export async function getInstallationInfo(
 
 /**
  * Build the GitHub App installation URL.
- * Encodes orgId in the state parameter so the callback knows which org to link.
+ * Encodes a signed CSRF state token so the callback can verify and extract the orgId.
  */
 export function getInstallationUrl(orgId: string): string {
   const clientId = process.env.GITHUB_APP_CLIENT_ID;
@@ -124,7 +125,7 @@ export function getInstallationUrl(orgId: string): string {
   }
 
   const appSlug = process.env.GITHUB_APP_SLUG || "agent-factorio";
-  const state = encodeURIComponent(orgId);
+  const state = encodeURIComponent(createGitHubState(orgId));
   return `https://github.com/apps/${appSlug}/installations/new?state=${state}`;
 }
 

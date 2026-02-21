@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { getSupabase } from "@/db/supabase";
+import { requireCliAuth } from "@/lib/cli-auth";
 
 /**
  * Upsert auto-detected subscriptions for a member.
@@ -129,6 +130,9 @@ async function upsertRepoUrl(
  * Handles both create and update based on whether agentId is provided.
  */
 export async function POST(request: NextRequest) {
+  const authResult = await requireCliAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+
   const body = await request.json();
   const supabase = getSupabase();
 
@@ -150,6 +154,14 @@ export async function POST(request: NextRequest) {
     detectedSubscriptions,
   } = body;
 
+  // Verify memberId ownership if provided
+  if (memberId && authResult.memberId !== memberId) {
+    return NextResponse.json(
+      { error: "Forbidden: memberId does not match authenticated user" },
+      { status: 403 },
+    );
+  }
+
   if (!agentName || !vendor || !model || !orgId) {
     return NextResponse.json(
       { error: "agentName, vendor, model, and orgId are required" },
@@ -168,6 +180,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "Organization not found" },
       { status: 404 },
+    );
+  }
+
+  // Verify authenticated user is a member of the org
+  const { data: orgMember } = await supabase
+    .from("org_members")
+    .select("id")
+    .eq("id", authResult.memberId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+
+  if (!orgMember) {
+    return NextResponse.json(
+      { error: "Forbidden: you are not a member of this organization" },
+      { status: 403 },
     );
   }
 

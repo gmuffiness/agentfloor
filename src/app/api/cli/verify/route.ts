@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/db/supabase";
+import { getSupabase, getSupabaseAuth } from "@/db/supabase";
 
 /**
  * POST /api/cli/verify
@@ -14,6 +14,18 @@ export async function POST(request: NextRequest) {
       { error: "loginToken and userId are required" },
       { status: 400 },
     );
+  }
+
+  // Validate that the caller is the authenticated user they claim to be
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+  const accessToken = authHeader.slice(7);
+  const supabaseAuth = getSupabaseAuth();
+  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(accessToken);
+  if (authError || !user || user.id !== userId) {
+    return NextResponse.json({ error: "userId does not match authenticated user" }, { status: 403 });
   }
 
   const supabase = getSupabase();

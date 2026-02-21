@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 interface CliAuthResult {
   userId: string;
@@ -24,12 +28,13 @@ export async function requireCliAuth(
   }
 
   const token = authHeader.slice(7);
+  const hashedToken = hashToken(token);
   const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from("cli_auth_tokens")
     .select("user_id, member_id, email")
-    .eq("token", token)
+    .eq("token", hashedToken)
     .single();
 
   if (error || !data) {
@@ -43,7 +48,7 @@ export async function requireCliAuth(
   supabase
     .from("cli_auth_tokens")
     .update({ last_used_at: new Date().toISOString() })
-    .eq("token", token)
+    .eq("token", hashedToken)
     .then(() => {});
 
   return {
@@ -62,10 +67,11 @@ export async function createCliAuthToken(
   email: string,
 ): Promise<string> {
   const token = randomBytes(32).toString("hex");
+  const hashedToken = hashToken(token);
   const supabase = getSupabase();
 
   await supabase.from("cli_auth_tokens").insert({
-    token,
+    token: hashedToken,
     user_id: userId,
     member_id: memberId,
     email,

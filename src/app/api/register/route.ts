@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
+import { requireCliAuth } from "@/lib/cli-auth";
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireCliAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+
   const body = await request.json();
   const supabase = getSupabase();
 

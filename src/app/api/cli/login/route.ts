@@ -2,15 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase, getSupabaseAuth } from "@/db/supabase";
 import { createCliAuthToken } from "@/lib/cli-auth";
 import { randomUUID } from "crypto";
-
-function generateInviteCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+import { generateInviteCode } from "@/lib/invite-code";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * POST /api/cli/login
@@ -22,6 +15,12 @@ function generateInviteCode(): string {
  *   - { action: "create", orgName, email, userId, memberName? } — create new org
  */
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
+  const { allowed, retryAfterMs } = checkRateLimit(`cli-login:${ip}`, { maxRequests: 10, windowMs: 60_000 });
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 60000) / 1000)) } });
+  }
+
   const body = await request.json();
   const { action } = body;
 
