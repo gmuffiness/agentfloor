@@ -3,8 +3,6 @@
 
 # AgentFactorio
 
-[English](CLAUDE.md) | [한국어](../docs/CLAUDE.ko.md)
-
 **GitHub for AI Agents** — A centralized hub for managing AI agent configurations, status, and relationships across your organization.
 
 ## Project Overview
