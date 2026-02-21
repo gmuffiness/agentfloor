@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
 import { requireOrgMember, requireOrgAdmin } from "@/lib/auth";
-import type { Organization, Department, Agent, Skill, Plugin, McpTool, AgentResource, MonthlyCost, DailyUsage } from "@/types";
+import type { Organization, Department, Agent, Skill, Plugin, McpTool, AgentResource, MonthlyCost, DailyUsage, OrgMember } from "@/types";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
@@ -18,7 +18,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     supabase.from("organizations").select("*").eq("id", orgId).single(),
     supabase.from("departments").select("*").eq("org_id", orgId),
     supabase.from("skills").select("*"),
-    supabase.from("org_members").select("id, name, email, role, status, joined_at").eq("org_id", orgId),
+    supabase.from("org_members").select("id, name, email, role, status, avatar_url, joined_at").eq("org_id", orgId),
   ]);
 
   if (orgError || !org) {
@@ -32,13 +32,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   const skillMap = new Map((allSkills ?? []).map((s) => [s.id, s]));
-  const memberMap = new Map((memberRows ?? []).map((m) => [m.id, {
+  const memberMap = new Map<string, OrgMember>((memberRows ?? []).map((m) => [m.id, {
     id: m.id,
     orgId: org.id,
     name: m.name,
     email: m.email,
     role: m.role,
     status: m.status,
+    avatarUrl: m.avatar_url ?? "",
     joinedAt: m.joined_at,
   }]));
 

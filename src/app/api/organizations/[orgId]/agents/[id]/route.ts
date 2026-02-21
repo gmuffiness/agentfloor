@@ -79,23 +79,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  // Human (owner)
-  let human = null;
+  // Human (owner) — now from org_members
+  let humanMember = null;
   if (agent.human_id) {
-    const { data: humanRow } = await supabase
-      .from("humans")
-      .select("*")
+    const { data: memberRow } = await supabase
+      .from("org_members")
+      .select("id, name, email, role, avatar_url")
       .eq("id", agent.human_id)
       .single();
-    if (humanRow) {
-      human = {
-        id: humanRow.id,
-        orgId: humanRow.org_id,
-        name: humanRow.name,
-        email: humanRow.email,
-        role: humanRow.role,
-        avatarUrl: humanRow.avatar_url,
-        createdAt: humanRow.created_at,
+    if (memberRow) {
+      humanMember = {
+        id: memberRow.id,
+        name: memberRow.name,
+        email: memberRow.email,
+        role: memberRow.role,
+        avatarUrl: memberRow.avatar_url,
       };
     }
   }
@@ -104,7 +102,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ...agent,
     position: { x: agent.pos_x, y: agent.pos_y },
     humanId: agent.human_id,
-    human,
+    humanMember,
     registeredBy: agent.registered_by ?? null,
     registeredByMember,
     runtimeType: agent.runtime_type ?? "api",

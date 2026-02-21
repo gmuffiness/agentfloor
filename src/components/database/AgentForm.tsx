@@ -27,16 +27,15 @@ export interface AgentFormData {
 
 interface AgentFormProps {
   departments: { id: string; name: string }[];
-  humans: { id: string; name: string }[];
+  members: { id: string; name: string }[];
   orgId: string;
   hasGitHub?: boolean;
-  defaultOwnerName?: string | null;
+  defaultOwnerId?: string | null;
   onSubmit: (data: AgentFormData) => void;
   onCancel: () => void;
-  onCreateHuman?: (name: string) => Promise<string | null>;
 }
 
-export function AgentForm({ departments, humans, orgId, hasGitHub, defaultOwnerName, onSubmit, onCancel, onCreateHuman }: AgentFormProps) {
+export function AgentForm({ departments, members, orgId, hasGitHub, defaultOwnerId, onSubmit, onCancel }: AgentFormProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [vendor, setVendor] = useState<Vendor>("anthropic");
@@ -44,15 +43,7 @@ export function AgentForm({ departments, humans, orgId, hasGitHub, defaultOwnerN
   const [status, setStatus] = useState<AgentStatus>("idle");
   const [monthlyCost, setMonthlyCost] = useState(0);
   const [deptId, setDeptId] = useState(departments[0]?.id ?? "");
-  const [humanId, setHumanId] = useState<string | null>(() => {
-    if (!defaultOwnerName) return null;
-    const match = humans.find((h) => h.name === defaultOwnerName);
-    return match?.id ?? null;
-  });
-  const [showNewHuman, setShowNewHuman] = useState(false);
-  const [newHumanName, setNewHumanName] = useState("");
-  const [creatingHuman, setCreatingHuman] = useState(false);
-  const [humanList, setHumanList] = useState(humans);
+  const [humanId, setHumanId] = useState<string | null>(defaultOwnerId ?? null);
 
   // GitHub repo search state
   const [repoQuery, setRepoQuery] = useState("");
@@ -129,19 +120,6 @@ export function AgentForm({ departments, humans, orgId, hasGitHub, defaultOwnerN
       }];
     }
     onSubmit(data);
-  };
-
-  const handleCreateHuman = async () => {
-    if (!newHumanName.trim() || !onCreateHuman) return;
-    setCreatingHuman(true);
-    const id = await onCreateHuman(newHumanName.trim());
-    if (id) {
-      setHumanList((prev) => [...prev, { id, name: newHumanName.trim() }]);
-      setHumanId(id);
-    }
-    setNewHumanName("");
-    setShowNewHuman(false);
-    setCreatingHuman(false);
   };
 
   const inputClass = "w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none";
@@ -226,56 +204,16 @@ export function AgentForm({ departments, humans, orgId, hasGitHub, defaultOwnerN
           </div>
           <div>
             <label className={labelClass}>Owner</label>
-            {showNewHuman ? (
-              <div className="flex gap-2">
-                <input
-                  value={newHumanName}
-                  onChange={(e) => setNewHumanName(e.target.value)}
-                  className={inputClass}
-                  placeholder="Enter name"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); handleCreateHuman(); }
-                    if (e.key === "Escape") setShowNewHuman(false);
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateHuman}
-                  disabled={creatingHuman || !newHumanName.trim()}
-                  className="shrink-0 rounded bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-500 disabled:opacity-50"
-                >
-                  {creatingHuman ? "..." : "Add"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNewHuman(false)}
-                  className="shrink-0 rounded px-2 py-2 text-sm text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <select
-                  value={humanId ?? ""}
-                  onChange={(e) => setHumanId(e.target.value || null)}
-                  className={inputClass}
-                >
-                  <option value="">None</option>
-                  {humanList.map((h) => (
-                    <option key={h.id} value={h.id}>{h.name}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setShowNewHuman(true)}
-                  className="shrink-0 rounded border border-slate-600 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
-                >
-                  + New
-                </button>
-              </div>
-            )}
+            <select
+              value={humanId ?? ""}
+              onChange={(e) => setHumanId(e.target.value || null)}
+              className={inputClass}
+            >
+              <option value="">None</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

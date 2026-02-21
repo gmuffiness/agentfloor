@@ -56,16 +56,6 @@ export interface MonthlyCost {
   byVendor: Record<Vendor, number>;
 }
 
-export interface Human {
-  id: string;
-  orgId: string;
-  name: string;
-  email: string;
-  role: string;
-  avatarUrl: string;
-  createdAt: string;
-}
-
 export interface Agent {
   id: string;
   name: string;
@@ -84,7 +74,6 @@ export interface Agent {
   lastActive: string;
   createdAt: string;
   humanId: string | null;
-  human?: Human | null;
   registeredBy: string | null;
   registeredByMember?: OrgMember | null;
   context?: AgentContext[];
@@ -237,5 +226,6 @@ export interface OrgMember {
   email: string | null;
   role: OrgMemberRole;
   status: OrgMemberStatus;
+  avatarUrl: string;
   joinedAt: string;
 }

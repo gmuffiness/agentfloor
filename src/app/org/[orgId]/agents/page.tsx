@@ -61,36 +61,34 @@ export default function AgentsPage() {
   const orgId = useOrgId();
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
-  const [humans, setHumans] = useState<{ id: string; name: string }[]>([]);
+  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hasGitHub, setHasGitHub] = useState(false);
   const [currentMemberName, setCurrentMemberName] = useState<string | null>(null);
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
   const selectAgent = useAppStore((s) => s.selectAgent);
   const fetchOrganization = useAppStore((s) => s.fetchOrganization);
 
   const fetchData = useCallback(async () => {
-    const [agentsRes, deptsRes, humansRes, githubRes, membersRes] = await Promise.all([
+    const [agentsRes, deptsRes, membersRes] = await Promise.all([
       fetch(`/api/organizations/${orgId}/agents`),
       fetch(`/api/organizations/${orgId}/departments`),
-      fetch(`/api/organizations/${orgId}/humans`),
-      fetch(`/api/organizations/${orgId}/github`),
       fetch(`/api/organizations/${orgId}/members`),
     ]);
     setAgents(await agentsRes.json());
     const deptData = await deptsRes.json();
     setDepartments(deptData.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
-    const humanData = await humansRes.json();
-    setHumans(humanData.map((h: { id: string; name: string }) => ({ id: h.id, name: h.name })));
-    if (githubRes.ok) {
-      const ghData = await githubRes.json();
-      setHasGitHub((ghData.installations ?? []).length > 0);
-    }
     if (membersRes.ok) {
       const membersData = await membersRes.json();
-      const currentId = membersData.currentMemberId;
-      const current = (membersData.members ?? []).find((m: { id: string; name: string }) => m.id === currentId);
-      if (current) setCurrentMemberName(current.name);
+      const memberList = (membersData.members ?? []).map((m: { id: string; name: string }) => ({ id: m.id, name: m.name }));
+      setMembers(memberList);
+      const curId = membersData.currentMemberId;
+      const current = memberList.find((m: { id: string; name: string }) => m.id === curId);
+      if (current) {
+        setCurrentMemberName(current.name);
+        setCurrentMemberId(current.id);
+      }
     }
     setLoading(false);
   }, [orgId]);
@@ -248,17 +246,11 @@ export default function AgentsPage() {
         <h1 className="text-2xl font-bold text-white">Agents</h1>
         <button
           onClick={async () => {
-            // Auto-create human for current member if not exists
-            if (currentMemberName && !humans.find((h) => h.name === currentMemberName)) {
-              const res = await fetch(`/api/organizations/${orgId}/humans`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: currentMemberName }),
-              });
-              if (res.ok) {
-                const { id } = await res.json();
-                setHumans((prev) => [...prev, { id, name: currentMemberName }]);
-              }
+            // Lazy-load GitHub status on first open
+            const githubRes = await fetch(`/api/organizations/${orgId}/github`);
+            if (githubRes.ok) {
+              const ghData = await githubRes.json();
+              setHasGitHub((ghData.installations ?? []).length > 0);
             }
             setShowForm(true);
           }}
@@ -279,22 +271,12 @@ export default function AgentsPage() {
       {showForm && (
         <AgentForm
           departments={departments}
-          humans={humans}
+          members={members}
           orgId={orgId}
           hasGitHub={hasGitHub}
-          defaultOwnerName={currentMemberName}
+          defaultOwnerId={currentMemberId}
           onSubmit={handleCreate}
           onCancel={() => setShowForm(false)}
-          onCreateHuman={async (name) => {
-            const res = await fetch(`/api/organizations/${orgId}/humans`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name }),
-            });
-            if (!res.ok) return null;
-            const { id } = await res.json();
-            return id as string;
-          }}
         />
       )}
     </div>

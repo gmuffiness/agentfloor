@@ -39,24 +39,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Join department name
-  const { data: deptRows } = await supabase.from("departments").select("id, name").eq("org_id", orgId);
+  // Join department name and org_members data in parallel
+  const [{ data: deptRows }, { data: memberRows }] = await Promise.all([
+    supabase.from("departments").select("id, name").eq("org_id", orgId),
+    supabase.from("org_members").select("id, name, email").eq("org_id", orgId),
+  ]);
   const deptMap = new Map((deptRows ?? []).map((d) => [d.id, d.name]));
-
-  // Join human name
-  const { data: humanRows } = await supabase.from("humans").select("id, name").eq("org_id", orgId);
-  const humanMap = new Map((humanRows ?? []).map((h) => [h.id, h.name]));
-
-  // Join registered_by member name
-  const { data: memberRows } = await supabase.from("org_members").select("id, name, email").eq("org_id", orgId);
   const memberMap = new Map((memberRows ?? []).map((m) => [m.id, m]));
 
   const result = (rows ?? []).map((a) => {
     const member = a.registered_by ? memberMap.get(a.registered_by) : null;
+    const humanMember = a.human_id ? memberMap.get(a.human_id) : null;
     return {
       ...a,
       departmentName: deptMap.get(a.dept_id) ?? "",
-      humanName: a.human_id ? (humanMap.get(a.human_id) ?? "") : "",
+      humanName: humanMember?.name ?? "",
       registeredByName: member?.name ?? "",
       registeredByEmail: member?.email ?? "",
     };
