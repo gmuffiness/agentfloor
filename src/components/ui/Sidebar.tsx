@@ -149,7 +149,7 @@ export function Sidebar() {
       {/* Logo + Toggle */}
       <div className="flex h-12 items-center justify-between px-3 border-b border-slate-700/50">
         <Link href="/" className="flex items-center gap-2 hover:opacity-80 min-w-0">
-          <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-8 w-8 flex-shrink-0" />
+          <img src="/agentfactorio_logo_no_title.png" alt="AgentFactorio" className="h-10 w-10 flex-shrink-0" />
           {!collapsed && (
             <span className="text-base font-bold text-white truncate">AgentFactorio</span>
           )}

@@ -137,7 +137,7 @@ export default async function HomePage() {
       <nav className="fixed top-0 z-50 w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-lg">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-9 w-9" />
+            <img src="/agentfactorio_logo_no_title.png" alt="AgentFactorio" className="h-12 w-12" />
             <span className="text-lg font-bold tracking-tight">AgentFactorio</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -351,7 +351,7 @@ export default async function HomePage() {
       <footer className="border-t border-slate-800/60 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 text-sm text-slate-500 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2">
-            <img src="/agentfactorio_logo.png" alt="AgentFactorio" className="h-7 w-7" />
+            <img src="/agentfactorio_logo_no_title.png" alt="AgentFactorio" className="h-10 w-10" />
             <span>AgentFactorio</span>
           </div>
           <div className="flex items-center gap-6">
