@@ -164,6 +164,8 @@ pnpm dev   # http://localhost:3000
 | [data-model.md](data-model.md) | 데이터 모델 상세 |
 | [vision.md](vision.md) | 서비스 포지셔닝 & 비전 |
 | [publishing.md](publishing.md) | npm/Vercel 배포 가이드 |
+| [cost-tracking.md](cost-tracking.md) | 비용 추적 설계 문서 |
+| [roadmap.md](roadmap.md) | 로드맵 & 미구현 기능 분석 |
 
 ## 라이선스
 

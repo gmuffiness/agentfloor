@@ -98,6 +98,12 @@ See [docs/data-model.md](../docs/data-model.md) for detailed entity reference.
 ### API
 See [docs/api-reference.md](../docs/api-reference.md) for endpoint reference.
 
+### Documentation
+- **All docs in `docs/` must be written in English** — Korean version is only at `docs/README.ko.md`
+- `docs/` — Public-facing documentation (cli, api-reference, architecture, data-model, vision, publishing, etc.)
+- `docs/dev/` — Internal dev notes, research, and analysis (gitignored, not published)
+- When writing new documentation, place it in `docs/` (English). For internal/research notes, use `docs/dev/`
+
 ### Security & Secrets
 - **All API keys and credentials are managed in `.env`** — never hardcode secrets in source code
 - `.env*` is gitignored — secrets are never committed to the repository

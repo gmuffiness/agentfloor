@@ -1,18 +1,18 @@
 # AgentFactorio CLI
 
-`npx agent-factorio` — 어떤 프로젝트에서든 에이전트를 허브에 등록하고 관리하는 CLI 도구.
+`npx agent-factorio` — A CLI tool to register and manage agents on the hub from any project.
 
 ## Quick Start
 
 ```bash
-# 1. 허브에 로그인 (이메일 인증 + 조직 생성/참여)
+# 1. Log in to the hub (email verification + create/join organization)
 npx agent-factorio login
 
-# 2. 현재 프로젝트의 에이전트를 허브에 등록
+# 2. Register the current project's agent on the hub
 npx agent-factorio push
 ```
 
-이후 대시보드에서 등록된 에이전트를 확인할 수 있습니다.
+After this, you can view the registered agent on the dashboard.
 
 ---
 
@@ -20,7 +20,7 @@ npx agent-factorio push
 
 ### `agent-factorio login`
 
-허브에 연결하고 이메일 인증 후 조직에 참여하거나 새 조직을 생성합니다.
+Connects to the hub, verifies your email, and joins an existing organization or creates a new one.
 
 ```
 $ npx agent-factorio login
@@ -48,21 +48,21 @@ Choice: 1
 Logged in! Run `agent-factorio push` in any project to register an agent.
 ```
 
-**동작:**
-1. Hub URL 입력 (기본값: `https://agent-factorio.vercel.app`, self-host면 직접 입력)
-2. 이메일 인증 (magic link)
-3. 조직 생성 또는 초대 코드로 참여
-4. 인증 토큰 발급 + 글로벌 config 저장
+**Behavior:**
+1. Enter Hub URL (default: `https://agent-factorio.vercel.app`, enter manually for self-hosted instances)
+2. Email verification (magic link)
+3. Create an organization or join one via invite code
+4. Auth token issued + saved to global config
 
-**여러 조직:**
-- `login`을 여러 번 실행하면 `organizations` 배열에 추가
-- `org switch`로 기본 조직 변경 가능
+**Multiple organizations:**
+- Running `login` multiple times adds entries to the `organizations` array
+- Use `org switch` to change the default organization
 
 ---
 
 ### `agent-factorio push`
 
-현재 프로젝트의 에이전트 설정을 자동 감지하여 허브에 등록합니다.
+Auto-detects the current project's agent configuration and registers it on the hub.
 
 ```
 $ npx agent-factorio push
@@ -89,25 +89,25 @@ Choice: 1
 ✓ Agent registered! (agent-17345678)
 ```
 
-**자동 감지 항목:**
+**Auto-detected items:**
 
-| 항목 | 소스 |
+| Item | Source |
 |------|------|
 | Git repo URL | `git remote get-url origin` |
 | Skills | `.claude/commands/*.md`, `.claude/skills/**/*.md`, `skills/**/*.md` |
-| MCP servers | `.claude/settings.local.json`, `.claude/settings.json`의 `mcpServers` |
-| CLAUDE.md | `.claude/CLAUDE.md` 또는 루트 `CLAUDE.md` |
+| MCP servers | `mcpServers` in `.claude/settings.local.json`, `.claude/settings.json` |
+| CLAUDE.md | `.claude/CLAUDE.md` or root `CLAUDE.md` |
 
-**업데이트:**
-- 이미 등록된 에이전트가 있으면 (`.agent-factorio/config.json`에 `agentId` 존재) 자동으로 업데이트
-- MCP tools, context(CLAUDE.md) 모두 갱신
-- 중복 에이전트 생성 없음
+**Updates:**
+- If an agent is already registered (`agentId` exists in `.agent-factorio/config.json`), it automatically updates
+- MCP tools and context (CLAUDE.md) are all refreshed
+- No duplicate agents are created
 
 ---
 
 ### `agent-factorio status`
 
-현재 프로젝트의 등록 상태를 확인합니다.
+Checks the registration status of the current project.
 
 ```
 $ npx agent-factorio status
@@ -128,7 +128,7 @@ Agent Status
 
 ### `agent-factorio whoami`
 
-로그인 정보를 확인합니다.
+Displays your login information.
 
 ```
 $ npx agent-factorio whoami
@@ -146,7 +146,7 @@ Login Info
 
 ### `agent-factorio logout`
 
-글로벌 config를 삭제합니다.
+Deletes the global config.
 
 ```
 $ npx agent-factorio logout
@@ -157,11 +157,11 @@ $ npx agent-factorio logout
 
 ## Organization Commands
 
-`agent-factorio org <subcommand>` — 조직을 생성, 참여, 조회, 전환합니다.
+`agent-factorio org <subcommand>` — Create, join, list, and switch organizations.
 
 ### `org list`
 
-소속된 모든 조직을 조회합니다.
+Lists all organizations you belong to.
 
 ```
 $ npx agent-factorio org list
@@ -185,7 +185,7 @@ Organizations
 
 ### `org create [name]`
 
-새 조직을 생성합니다. 이름을 인자로 전달하거나 프롬프트에서 입력합니다.
+Creates a new organization. Pass the name as an argument or enter it at the prompt.
 
 ```
 $ npx agent-factorio org create "My Team"
@@ -195,7 +195,7 @@ $ npx agent-factorio org create "My Team"
 
 ### `org join [inviteCode]`
 
-초대 코드로 기존 조직에 참여합니다.
+Joins an existing organization using an invite code.
 
 ```
 $ npx agent-factorio org join C2M2XF
@@ -204,7 +204,7 @@ $ npx agent-factorio org join C2M2XF
 
 ### `org switch`
 
-여러 조직에 속해 있을 때, 기본 조직을 변경합니다.
+Changes the default organization when you belong to multiple organizations.
 
 ```
 $ npx agent-factorio org switch
@@ -217,7 +217,7 @@ Choice: 2
 
 ### `org info`
 
-현재 기본 조직의 상세 정보를 조회합니다.
+Displays detailed information about the current default organization.
 
 ```
 $ npx agent-factorio org info
@@ -237,13 +237,13 @@ Organization
 
 ## Agent Commands
 
-`agent-factorio agent <subcommand>` — 에이전트를 조회, 수정, 동기화, 삭제합니다.
+`agent-factorio agent <subcommand>` — List, edit, sync, and delete agents.
 
-모든 명령어에서 `[id]`를 생략하면 현재 프로젝트의 `.agent-factorio/config.json`에 저장된 에이전트가 사용됩니다.
+If `[id]` is omitted in any command, the agent stored in the current project's `.agent-factorio/config.json` is used.
 
 ### `agent list`
 
-현재 기본 조직의 에이전트 목록을 조회합니다.
+Lists all agents in the current default organization.
 
 ```
 $ npx agent-factorio agent list
@@ -260,7 +260,7 @@ Agents in "Acme Corp"
 
 ### `agent info [id]`
 
-에이전트 상세 정보를 조회합니다 (skills, MCP tools, context, resources 포함).
+Displays detailed agent information (including skills, MCP tools, context, and resources).
 
 ```
 $ npx agent-factorio agent info
@@ -290,28 +290,28 @@ Agent: my-project
 
 ### `agent edit [id]`
 
-에이전트 속성을 수정합니다. 옵션으로 변경할 필드를 지정합니다.
+Modifies agent properties. Specify fields to change via options.
 
 ```bash
-# 이름과 모델 변경
+# Change name and model
 npx agent-factorio agent edit --name "my-agent-v2" --model "claude-sonnet-4-6"
 
-# 특정 에이전트 ID 지정
+# Specify a particular agent ID
 npx agent-factorio agent edit agent-17345678 --vendor openai --model gpt-4o
 
-# 사용 가능한 옵션
-#   --name <name>         에이전트 이름
-#   --vendor <vendor>     벤더 (anthropic, openai, google 등)
-#   --model <model>       모델
-#   --description <desc>  설명
-#   --status <status>     상태 (active, idle, error)
+# Available options
+#   --name <name>         Agent name
+#   --vendor <vendor>     Vendor (anthropic, openai, google, etc.)
+#   --model <model>       Model
+#   --description <desc>  Description
+#   --status <status>     Status (active, idle, error)
 ```
 
-로컬 프로젝트의 에이전트를 수정하면 `.agent-factorio/config.json`도 자동 업데이트됩니다.
+When editing the local project's agent, `.agent-factorio/config.json` is automatically updated as well.
 
 ### `agent pull [id]`
 
-허브에서 에이전트 설정을 가져와 로컬 `.agent-factorio/config.json`에 동기화합니다.
+Fetches agent configuration from the hub and syncs it to the local `.agent-factorio/config.json`.
 
 ```
 $ npx agent-factorio agent pull
@@ -322,11 +322,11 @@ $ npx agent-factorio agent pull
   Status:  active
 ```
 
-다른 사람이 대시보드에서 에이전트 설정을 변경했을 때 로컬에 반영하고 싶을 때 사용합니다.
+Use this when someone else has changed the agent settings from the dashboard and you want to reflect those changes locally.
 
 ### `agent delete [id]`
 
-에이전트를 삭제합니다. 확인 프롬프트가 표시됩니다.
+Deletes an agent. A confirmation prompt is shown.
 
 ```
 $ npx agent-factorio agent delete
@@ -339,9 +339,9 @@ $ npx agent-factorio agent delete
 
 ## Config Files
 
-### 글로벌 config: `~/.agent-factorio/config.json`
+### Global config: `~/.agent-factorio/config.json`
 
-`login` 명령어로 생성. 모든 프로젝트에서 공유.
+Created by the `login` command. Shared across all projects.
 
 ```json
 {
@@ -362,12 +362,12 @@ $ npx agent-factorio agent delete
 }
 ```
 
-- `authToken`: 로그인 시 발급. `org`, `agent` 명령어의 인증에 사용
-- `defaultOrg`: `org switch`로 변경 가능
+- `authToken`: Issued on login. Used for authentication in `org` and `agent` commands
+- `defaultOrg`: Can be changed with `org switch`
 
-### 프로젝트 config: `.agent-factorio/config.json`
+### Project config: `.agent-factorio/config.json`
 
-`push` 명령어로 생성. 해당 프로젝트에만 적용. **gitignore에 추가 권장.**
+Created by the `push` command. Applies only to the current project. **Recommended to add to .gitignore.**
 
 ```json
 {
@@ -387,15 +387,15 @@ $ npx agent-factorio agent delete
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/cli/login` | POST | None | 이메일 인증, 조직 생성/참여. authToken 발급 |
-| `/api/cli/push` | POST | None | 에이전트 등록/업데이트 |
-| `/api/cli/orgs` | GET | Bearer token | 소속 조직 목록 |
-| `/api/cli/agents` | GET | Bearer token | 조직 내 에이전트 목록 (`?orgId=X`) |
-| `/api/cli/agents/:id` | GET | Bearer token | 에이전트 상세 |
-| `/api/cli/agents/:id` | PATCH | Bearer token | 에이전트 수정 |
-| `/api/cli/agents/:id` | DELETE | Bearer token | 에이전트 삭제 |
+| `/api/cli/login` | POST | None | Email verification, create/join organization. Issues authToken |
+| `/api/cli/push` | POST | None | Register/update agent |
+| `/api/cli/orgs` | GET | Bearer token | List organizations you belong to |
+| `/api/cli/agents` | GET | Bearer token | List agents in organization (`?orgId=X`) |
+| `/api/cli/agents/:id` | GET | Bearer token | Agent details |
+| `/api/cli/agents/:id` | PATCH | Bearer token | Edit agent |
+| `/api/cli/agents/:id` | DELETE | Bearer token | Delete agent |
 
-인증이 필요한 엔드포인트는 `Authorization: Bearer <authToken>` 헤더를 사용합니다.
+Endpoints requiring authentication use the `Authorization: Bearer <authToken>` header.
 
 ---
 
@@ -426,24 +426,24 @@ cli/
 ## Troubleshooting
 
 **`Cannot connect to hub`**
-- 허브가 실행 중인지 확인 (`pnpm dev` 또는 배포된 URL)
-- Hub URL이 올바른지 확인 (프로토콜 포함: `http://` 또는 `https://`)
+- Check that the hub is running (`pnpm dev` or the deployed URL)
+- Verify the Hub URL is correct (include protocol: `http://` or `https://`)
 
 **`Not logged in`**
-- `agent-factorio login`을 먼저 실행
-- `~/.agent-factorio/config.json` 파일이 존재하는지 확인
+- Run `agent-factorio login` first
+- Check that `~/.agent-factorio/config.json` exists
 
 **`Auth token missing`**
-- 이전 버전에서 로그인했다면 토큰이 없을 수 있음
-- `agent-factorio login`을 다시 실행하면 새 토큰 발급
+- If you logged in with a previous version, the token may not exist
+- Running `agent-factorio login` again will issue a new token
 
 **`No departments exist`**
-- CLI push는 부서가 없으면 자동으로 "Engineering" 부서를 생성
+- CLI push automatically creates an "Engineering" department if none exist
 
 **`Invalid invite code`**
-- 초대 코드가 정확한지 확인 (대소문자 무관, 6자리)
-- 해당 조직이 허브에 존재하는지 확인
+- Verify the invite code is correct (case-insensitive, 6 characters)
+- Check that the organization exists on the hub
 
 **`No agent ID specified`**
-- `agent info`, `agent edit` 등은 ID를 생략하면 로컬 config의 agentId를 사용
-- 프로젝트 루트에서 실행하거나, ID를 직접 지정: `agent info agent-12345`
+- `agent info`, `agent edit`, etc. use the agentId from local config when ID is omitted
+- Run from the project root, or specify the ID directly: `agent info agent-12345`

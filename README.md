@@ -38,7 +38,7 @@ agent-factorio push           # Register current project's agent to the hub
 
 `login` connects to the hub (default: `https://agent-factorio.vercel.app`), verifies your email, then lets you create a new org or join one with an invite code. `push` auto-detects your Git repo, MCP servers, skills, and CLAUDE.md.
 
-### 2. View the dashboard
+### View the dashboard
 
 After registration, manage agents visually:
 - Spatial map (Pixi.js) — departments = rooms, agents = avatars
@@ -46,7 +46,7 @@ After registration, manage agents visually:
 - Agent table — CRUD + status monitoring
 - Cost analytics — per-department/agent usage charts
 
-### 3. Manage orgs & agents (CLI)
+### Manage orgs & agents (CLI)
 
 ```bash
 # Organization management

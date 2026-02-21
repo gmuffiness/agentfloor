@@ -51,3 +51,6 @@ next-env.d.ts
 
 # agent-factorio local config
 .agent-factorio/
+
+# dev/research docs (internal only)
+docs/dev/
