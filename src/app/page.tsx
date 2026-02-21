@@ -151,14 +151,14 @@ export default async function HomePage() {
         </div>
 
         <div className="relative mx-auto max-w-3xl px-6 pb-12 pt-24 text-center sm:pt-32">
-          <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl sm:leading-tight">
-            GitHub for{" "}
+          <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-[2.75rem] sm:leading-tight">
+            All your team&apos;s agents,{" "}
             <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              AI Agents
+              one place
             </span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg text-slate-400">
-            One place to register, monitor, and manage every agent across your organization.
+            See who runs which agents, what skills and MCP tools they use, and how much it costs — across every team.
           </p>
         </div>
       </section>

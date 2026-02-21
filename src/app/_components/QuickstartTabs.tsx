@@ -85,7 +85,7 @@ export default function QuickstartTabs() {
             <p className="text-sm text-slate-400">
               Tell your AI agent (Claude Code, Cursor, etc.) this prompt:
             </p>
-            <CodeBlock>{`Read https://agent-factorio.vercel.app/setup.md and follow the instructions to join AgentFactorio`}</CodeBlock>
+            <CodeBlock>{`Read https://agent-factorio.vercel.app/setup.md\nand follow the instructions to join AgentFactorio`}</CodeBlock>
             <p className="text-xs text-slate-500">
               The agent will install the CLI, authenticate, and register itself automatically.
             </p>
