@@ -148,7 +148,7 @@ export default function SubscriptionManager({ orgId, memberId }: SubscriptionMan
       ) : (
         <table className="w-full text-sm mb-4">
           <thead>
-            <tr className="border-b border-slate-700 text-left text-slate-400">
+            <tr className="border-b border-slate-700 text-left text-slate-300">
               <th className="pb-2 font-medium">Service</th>
               <th className="pb-2 font-medium">Type</th>
               <th className="pb-2 font-medium">Amount</th>
@@ -249,7 +249,7 @@ export default function SubscriptionManager({ orgId, memberId }: SubscriptionMan
       {showAdd ? (
         <div className="rounded-lg border border-slate-600 bg-slate-900 p-4 space-y-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-400">Service</label>
+            <label className="text-xs font-medium text-slate-300">Service</label>
             <select
               value={addPreset}
               onChange={(e) => handlePresetChange(e.target.value)}
@@ -265,7 +265,7 @@ export default function SubscriptionManager({ orgId, memberId }: SubscriptionMan
 
           {addPreset === "__custom__" && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-400">Service Name</label>
+              <label className="text-xs font-medium text-slate-300">Service Name</label>
               <input
                 type="text"
                 value={addCustomName}
@@ -279,7 +279,7 @@ export default function SubscriptionManager({ orgId, memberId }: SubscriptionMan
           {addPreset && (
             <div className="flex gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-400">Category</label>
+                <label className="text-xs font-medium text-slate-300">Category</label>
                 <select
                   value={addCategory}
                   onChange={(e) => setAddCategory(e.target.value as ServiceCategory)}
@@ -291,7 +291,7 @@ export default function SubscriptionManager({ orgId, memberId }: SubscriptionMan
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-400">Amount (USD/mo)</label>
+                <label className="text-xs font-medium text-slate-300">Amount (USD/mo)</label>
                 <input
                   type="number"
                   min={0}
@@ -302,7 +302,7 @@ export default function SubscriptionManager({ orgId, memberId }: SubscriptionMan
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-400">Billing Cycle</label>
+                <label className="text-xs font-medium text-slate-300">Billing Cycle</label>
                 <select
                   value={addCycle}
                   onChange={(e) => setAddCycle(e.target.value as BillingCycle)}
