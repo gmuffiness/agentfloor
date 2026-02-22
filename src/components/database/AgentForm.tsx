@@ -22,7 +22,22 @@ export interface AgentFormData {
   deptId: string;
   humanId: string | null;
   runtimeType?: string;
+  gatewayUrl?: string;
   resources?: { type: string; name: string; url: string; accessLevel: string }[];
+}
+
+export interface EditAgentData {
+  id: string;
+  name: string;
+  description: string;
+  vendor: Vendor;
+  model: string;
+  status: AgentStatus;
+  monthlyCost: number;
+  deptId: string;
+  humanId: string | null;
+  runtimeType?: string;
+  gatewayUrl?: string;
 }
 
 interface AgentFormProps {
@@ -31,19 +46,23 @@ interface AgentFormProps {
   orgId: string;
   hasGitHub?: boolean;
   defaultOwnerId?: string | null;
+  editAgent?: EditAgentData;
   onSubmit: (data: AgentFormData) => void;
   onCancel: () => void;
 }
 
-export function AgentForm({ departments, members, orgId, hasGitHub, defaultOwnerId, onSubmit, onCancel }: AgentFormProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [vendor, setVendor] = useState<Vendor>("anthropic");
-  const [model, setModel] = useState("");
-  const [status, setStatus] = useState<AgentStatus>("idle");
-  const [monthlyCost, setMonthlyCost] = useState(0);
-  const [deptId, setDeptId] = useState(departments[0]?.id ?? "");
-  const [humanId, setHumanId] = useState<string | null>(defaultOwnerId ?? null);
+export function AgentForm({ departments, members, orgId, hasGitHub, defaultOwnerId, editAgent, onSubmit, onCancel }: AgentFormProps) {
+  const isEdit = !!editAgent;
+  const [name, setName] = useState(editAgent?.name ?? "");
+  const [description, setDescription] = useState(editAgent?.description ?? "");
+  const [vendor, setVendor] = useState<Vendor>(editAgent?.vendor ?? "anthropic");
+  const [model, setModel] = useState(editAgent?.model ?? "");
+  const [status, setStatus] = useState<AgentStatus>(editAgent?.status ?? "idle");
+  const [monthlyCost, setMonthlyCost] = useState(editAgent?.monthlyCost ?? 0);
+  const [deptId, setDeptId] = useState(editAgent?.deptId ?? departments[0]?.id ?? "");
+  const [humanId, setHumanId] = useState<string | null>(editAgent?.humanId ?? defaultOwnerId ?? null);
+  const [runtimeType, setRuntimeType] = useState(editAgent?.runtimeType ?? "");
+  const [gatewayUrl, setGatewayUrl] = useState(editAgent?.gatewayUrl ?? "");
 
   // GitHub repo search state
   const [repoQuery, setRepoQuery] = useState("");
@@ -110,6 +129,8 @@ export function AgentForm({ departments, members, orgId, hasGitHub, defaultOwner
     e.preventDefault();
     if (!name || !deptId) return;
     const data: AgentFormData = { name, description, vendor, model, status, monthlyCost, deptId, humanId };
+    if (runtimeType) data.runtimeType = runtimeType;
+    if (gatewayUrl) data.gatewayUrl = gatewayUrl;
     if (selectedRepo) {
       data.runtimeType = "cloud";
       data.resources = [{
@@ -128,7 +149,7 @@ export function AgentForm({ departments, members, orgId, hasGitHub, defaultOwner
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <form onSubmit={handleSubmit} className="w-full max-w-md rounded-lg bg-slate-900 p-6 border border-slate-700">
-        <h2 className="mb-4 text-lg font-bold text-white">Add Agent</h2>
+        <h2 className="mb-4 text-lg font-bold text-white">{isEdit ? "Edit Agent" : "Add Agent"}</h2>
 
         <div className="flex flex-col gap-3">
           {hasGitHub && (
@@ -243,6 +264,21 @@ export function AgentForm({ departments, members, orgId, hasGitHub, defaultOwner
               <input type="number" value={monthlyCost} onChange={(e) => setMonthlyCost(Number(e.target.value))} className={inputClass} min={0} />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Runtime Type</label>
+              <select value={runtimeType} onChange={(e) => setRuntimeType(e.target.value)} className={inputClass}>
+                <option value="">None</option>
+                <option value="cloud">Cloud</option>
+                <option value="openclaw">OpenClaw</option>
+                <option value="api">API</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Gateway URL</label>
+              <input value={gatewayUrl} onChange={(e) => setGatewayUrl(e.target.value)} className={inputClass} placeholder="https://..." />
+            </div>
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
@@ -250,7 +286,7 @@ export function AgentForm({ departments, members, orgId, hasGitHub, defaultOwner
             Cancel
           </button>
           <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500">
-            Create Agent
+            {isEdit ? "Save Changes" : "Create Agent"}
           </button>
         </div>
       </form>

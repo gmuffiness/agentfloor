@@ -68,6 +68,12 @@ npx supabase gen types typescript --linked > src/types/supabase.ts  # Auto-gener
 - **Heavy client libs** (Pixi.js, React Flow) must use `dynamic()` import with `{ ssr: false }`
 - **DB**: Supabase (PostgreSQL) via `@supabase/supabase-js` — client singleton at `src/db/supabase.ts`
 
+### Template Organizations
+- **Template org** = `visibility: "public"` and `forked_from IS NULL` (e.g. Bloom Cosmetics, NovaPay, Pixel Forge Studios)
+- Guest users (not a member) see read-only UI: no add/edit/delete, inline editing disabled, "Template (read-only)" badge shown
+- Read-only check: `isReadOnly = organization.visibility === "public" && !currentMemberId`
+- Write attempts show a dismissible toast: "This is a template organization. Fork it to make changes."
+
 ### Data Model
 - Organization (with invite code) → OrgMember[] + Department[] → Agent[] → Skill[], Plugin[], McpTool[]
 - `org_members`: email-based identification (`email` column), `user_id` for Supabase Auth
