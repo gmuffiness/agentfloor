@@ -137,7 +137,8 @@ export default function SettingsPage() {
     try {
       const res = await fetch(`/api/organizations/${orgId}/api-keys`);
       if (res.ok) {
-        setApiKeysStatus(await res.json());
+        const data = await res.json();
+        setApiKeysStatus(data.orgKeys ?? { anthropic: false, openai: false });
       }
     } catch { /* ignore */ }
   }, [orgId]);

@@ -103,6 +103,15 @@ See [docs/api-reference.md](../docs/api-reference.md) for endpoint reference.
 - `docs/` — Public-facing documentation (cli, api-reference, architecture, data-model, vision, publishing, etc.)
 - `docs/dev/` — Internal dev notes, research, and analysis (gitignored, not published)
 - When writing new documentation, place it in `docs/` (English). For internal/research notes, use `docs/dev/`
+- **When the user asks to document or organize something into docs, create the file under `docs/`**
+
+### Chat API Keys (BYOK)
+- Chat requires an API key: **user personal key (localStorage) → org key (DB) → rejected**
+- Personal keys stored in browser `localStorage` (`af_user_anthropic_key`, `af_user_openai_key`)
+- Sent as `X-User-Anthropic-Key` / `X-User-OpenAI-Key` request headers
+- Org-level keys set by admin in Settings, encrypted with AES-256-GCM
+- Template/featured orgs have no org keys — users must bring their own
+- See [docs/chat-api-keys.md](../docs/chat-api-keys.md) for full details
 
 ### Security & Secrets
 - **All API keys and credentials are managed in `.env`** — never hardcode secrets in source code

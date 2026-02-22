@@ -3,6 +3,12 @@
 import { useEffect, useRef } from "react";
 import { cn, getVendorLabel } from "@/lib/utils";
 import type { Message, Vendor } from "@/types";
+
+const vendorBadgeClass: Record<string, string> = {
+  anthropic: "bg-orange-500/20 text-orange-300",
+  openai: "bg-emerald-500/20 text-emerald-300",
+  google: "bg-blue-500/20 text-blue-300",
+};
 import { MessageBubble } from "./MessageBubble";
 
 interface StreamingAgent {
@@ -25,11 +31,47 @@ interface ChatMessagesProps {
   waitingForAgent?: WaitingForAgent | null;
 }
 
-const vendorBadgeClass: Record<string, string> = {
-  anthropic: "bg-orange-500/20 text-orange-400",
-  openai: "bg-green-500/20 text-green-400",
-  google: "bg-blue-500/20 text-blue-400",
-};
+function BouncingDots({ color = "bg-slate-400" }: { color?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={cn("h-1.5 w-1.5 rounded-full animate-bounce", color)}
+          style={{ animationDelay: `${i * 0.15}s`, animationDuration: "0.9s" }}
+        />
+      ))}
+    </span>
+  );
+}
+
+function StreamingAgentAvatar({ name, vendor }: { name: string; vendor?: string }) {
+  const initials = name
+    .split(/[\s-_]+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
+  const bgColor =
+    vendor === "anthropic"
+      ? "bg-orange-500/20 text-orange-300 ring-orange-500/30"
+      : vendor === "openai"
+      ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30"
+      : vendor === "google"
+      ? "bg-blue-500/20 text-blue-300 ring-blue-500/30"
+      : "bg-slate-600/40 text-slate-300 ring-slate-500/30";
+
+  return (
+    <div
+      className={cn(
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 text-[11px] font-bold",
+        bgColor
+      )}
+    >
+      {initials || "A"}
+    </div>
+  );
+}
 
 export function ChatMessages({ messages, streamingText, streamingAgent, waitingForAgent }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -40,74 +82,97 @@ export function ChatMessages({ messages, streamingText, streamingAgent, waitingF
 
   if (messages.length === 0 && !streamingText && !streamingAgent) {
     return (
-      <div className="flex flex-1 items-center justify-center text-slate-500">
-        <p className="text-sm">Send a message to start the conversation</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-slate-500">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-700/50 ring-1 ring-slate-600/40">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </div>
+        <p className="text-sm font-medium text-slate-400">Send a message to start the conversation</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-4">
-      <div className="mx-auto flex max-w-3xl flex-col gap-3">
+    <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="mx-auto flex max-w-3xl flex-col gap-5">
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
+
+        {/* Thinking indicator — cloud agent analyzing */}
         {streamingAgent && !streamingAgent.text && streamingAgent.runtimeType === "cloud" && (
-          <div className="flex justify-start">
-            <div className="max-w-[70%] rounded-2xl bg-slate-700/60 px-4 py-3 text-slate-300">
-              <div className="flex items-center gap-2.5">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-purple-500" />
-                </span>
-                <span className="text-sm">
-                  <span className="font-medium text-white">{streamingAgent.agentName}</span> is analyzing the repository...
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-        {streamingAgent && streamingAgent.text && (
-          <div className="flex justify-start">
-            <div className="max-w-[70%] rounded-2xl bg-slate-700 px-4 py-2.5 text-slate-100">
-              <div className="mb-1.5 flex items-center gap-2">
+          <div className="flex justify-start gap-2.5">
+            <StreamingAgentAvatar name={streamingAgent.agentName} vendor={streamingAgent.agentVendor} />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 px-1">
                 <span className="text-xs font-semibold text-slate-200">{streamingAgent.agentName}</span>
                 {streamingAgent.agentVendor && (
-                  <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium", vendorBadgeClass[streamingAgent.agentVendor] ?? "bg-slate-600 text-slate-300")}>
+                  <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide", vendorBadgeClass[streamingAgent.agentVendor] ?? "bg-slate-600/40 text-slate-300")}>
                     {getVendorLabel(streamingAgent.agentVendor as Vendor)}
                   </span>
                 )}
               </div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{streamingAgent.text}</p>
-              <span className="inline-block h-4 w-1 animate-pulse bg-slate-400" />
-            </div>
-          </div>
-        )}
-        {/* Waiting for async agent response (polling relay) */}
-        {waitingForAgent && !streamingAgent && (
-          <div className="flex justify-start">
-            <div className="max-w-[70%] rounded-2xl bg-slate-700/60 px-4 py-3 text-slate-300">
-              <div className="flex items-center gap-2.5">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-yellow-500" />
-                </span>
-                <span className="text-sm">
-                  Waiting for <span className="font-medium text-white">{waitingForAgent.agentName}</span> to respond...
-                </span>
+              <div className="rounded-2xl rounded-tl-sm bg-slate-700/70 px-4 py-3 ring-1 ring-slate-600/30">
+                <div className="flex items-center gap-2.5">
+                  <BouncingDots color="bg-purple-400" />
+                  <span className="text-xs text-slate-400">Analyzing repository...</span>
+                </div>
               </div>
             </div>
           </div>
         )}
-        {/* Fallback for single-agent streaming (backward compat) */}
-        {!streamingAgent && streamingText && (
-          <div className="flex justify-start">
-            <div className="max-w-[70%] rounded-2xl bg-slate-700 px-4 py-2.5 text-slate-100">
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{streamingText}</p>
-              <span className="inline-block h-4 w-1 animate-pulse bg-slate-400" />
+
+        {/* Active streaming text */}
+        {streamingAgent && streamingAgent.text && (
+          <div className="flex justify-start gap-2.5">
+            <StreamingAgentAvatar name={streamingAgent.agentName} vendor={streamingAgent.agentVendor} />
+            <div className="flex max-w-[75%] flex-col gap-1">
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-xs font-semibold text-slate-200">{streamingAgent.agentName}</span>
+                {streamingAgent.agentVendor && (
+                  <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide", vendorBadgeClass[streamingAgent.agentVendor] ?? "bg-slate-600/40 text-slate-300")}>
+                    {getVendorLabel(streamingAgent.agentVendor as Vendor)}
+                  </span>
+                )}
+              </div>
+              <div className="rounded-2xl rounded-tl-sm bg-slate-700/70 px-4 py-2.5 text-slate-100 ring-1 ring-slate-600/30">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{streamingAgent.text}</p>
+                <span className="mt-1 inline-block h-3.5 w-0.5 animate-pulse rounded-full bg-blue-400" />
+              </div>
             </div>
           </div>
         )}
+
+        {/* Waiting for async agent (polling relay) */}
+        {waitingForAgent && !streamingAgent && (
+          <div className="flex justify-start gap-2.5">
+            <StreamingAgentAvatar name={waitingForAgent.agentName} vendor={undefined} />
+            <div className="flex flex-col gap-1">
+              <span className="px-1 text-xs font-semibold text-slate-200">{waitingForAgent.agentName}</span>
+              <div className="rounded-2xl rounded-tl-sm bg-slate-700/70 px-4 py-3 ring-1 ring-slate-600/30">
+                <div className="flex items-center gap-2.5">
+                  <BouncingDots color="bg-yellow-400" />
+                  <span className="text-xs text-slate-400">Waiting for response...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fallback single-agent streaming */}
+        {!streamingAgent && streamingText && (
+          <div className="flex justify-start gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-600/40 ring-1 ring-slate-500/30 text-[11px] font-bold text-slate-300">
+              A
+            </div>
+            <div className="max-w-[75%] rounded-2xl rounded-tl-sm bg-slate-700/70 px-4 py-2.5 text-slate-100 ring-1 ring-slate-600/30">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{streamingText}</p>
+              <span className="mt-1 inline-block h-3.5 w-0.5 animate-pulse rounded-full bg-blue-400" />
+            </div>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
     </div>

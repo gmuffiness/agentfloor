@@ -8,6 +8,14 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
+class NoApiKeyError extends Error {
+  vendor: string;
+  constructor(vendor: string) {
+    super(`No API key available for ${vendor}. Please configure your personal API key in the chat settings.`);
+    this.vendor = vendor;
+  }
+}
+
 interface AgentRow {
   id: string;
   name: string;
@@ -100,9 +108,10 @@ async function streamAnthropicResponse(
   systemPrompt: string,
   messages: { role: string; content: string }[],
   orgApiKey?: string | null,
+  userApiKey?: string | null,
 ) {
-  const apiKey = orgApiKey || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("Anthropic API key not configured. Please set it in Settings → API Keys.");
+  const apiKey = userApiKey || orgApiKey;
+  if (!apiKey) throw new NoApiKeyError("anthropic");
 
   const client = new Anthropic({ apiKey });
   const stream = await client.messages.stream({
@@ -119,9 +128,10 @@ async function streamOpenAIResponse(
   systemPrompt: string,
   messages: { role: string; content: string }[],
   orgApiKey?: string | null,
+  userApiKey?: string | null,
 ) {
-  const apiKey = orgApiKey || process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OpenAI API key not configured. Please set it in Settings → API Keys.");
+  const apiKey = userApiKey || orgApiKey;
+  if (!apiKey) throw new NoApiKeyError("openai");
 
   const client = new OpenAI({ apiKey });
   const stream = await client.chat.completions.create({
@@ -223,14 +233,18 @@ export async function POST(
     });
   }
 
-  // Org-level API keys — decrypt before use (fall back to env vars in stream functions)
+  // User-provided API keys from request headers (BYOK)
+  const userAnthropicKey = request.headers.get("X-User-Anthropic-Key") || null;
+  const userOpenaiKey = request.headers.get("X-User-OpenAI-Key") || null;
+
+  // Org-level API keys — decrypt before use
   let orgAnthropicKey: string | null = null;
   let orgOpenaiKey: string | null = null;
   try {
     if (orgCheck?.anthropic_api_key) orgAnthropicKey = decrypt(orgCheck.anthropic_api_key as string);
     if (orgCheck?.openai_api_key) orgOpenaiKey = decrypt(orgCheck.openai_api_key as string);
   } catch {
-    // Decryption failed — keys may be corrupted or ENCRYPTION_KEY changed; fall back to env vars
+    // Decryption failed — keys may be corrupted or ENCRYPTION_KEY changed
   }
 
   // Fetch all agents
@@ -295,6 +309,25 @@ export async function POST(
     role: m.role as string,
     content: m.content,
   })).filter((m) => m.role !== "system");
+
+  // Pre-validate: check that required API keys are available before starting stream
+  for (const agent of agents) {
+    if (agent.vendor === "anthropic" && agent.runtime_type !== "openclaw") {
+      if (!userAnthropicKey && !orgAnthropicKey) {
+        return new Response(
+          JSON.stringify({ error: "NO_API_KEY", message: "No API key available for anthropic. Please configure your personal API key in the chat settings.", vendor: "anthropic" }),
+          { status: 403, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    } else if (agent.vendor === "openai" && agent.runtime_type !== "openclaw") {
+      if (!userOpenaiKey && !orgOpenaiKey) {
+        return new Response(
+          JSON.stringify({ error: "NO_API_KEY", message: "No API key available for openai. Please configure your personal API key in the chat settings.", vendor: "openai" }),
+          { status: 403, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+  }
 
   const encoder = new TextEncoder();
 
@@ -370,7 +403,7 @@ export async function POST(
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text, agentId: agent.id, agentName: agent.name })}\n\n`));
             }
           } else if (agent.vendor === "anthropic") {
-            const { stream } = await streamAnthropicResponse(agent, systemPrompt, chatMessages, orgAnthropicKey);
+            const { stream } = await streamAnthropicResponse(agent, systemPrompt, chatMessages, orgAnthropicKey, userAnthropicKey);
             for await (const event of stream) {
               if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
                 const text = event.delta.text;
@@ -379,7 +412,7 @@ export async function POST(
               }
             }
           } else if (agent.vendor === "openai") {
-            const { stream } = await streamOpenAIResponse(agent, systemPrompt, chatMessages, orgOpenaiKey);
+            const { stream } = await streamOpenAIResponse(agent, systemPrompt, chatMessages, orgOpenaiKey, userOpenaiKey);
             for await (const chunk of stream) {
               const text = chunk.choices[0]?.delta?.content;
               if (text) {
@@ -417,8 +450,12 @@ export async function POST(
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`));
         controller.close();
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Stream error";
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`));
+        if (err instanceof NoApiKeyError) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "NO_API_KEY", message: err.message, vendor: err.vendor })}\n\n`));
+        } else {
+          const errorMsg = err instanceof Error ? err.message : "Stream error";
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`));
+        }
         controller.close();
       }
     },

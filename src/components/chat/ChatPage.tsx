@@ -8,6 +8,39 @@ import { NewChatModal } from "./NewChatModal";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import type { Vendor, Conversation, Message } from "@/types";
+// Inline SVG icons (no external icon library required)
+function KeyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="7.5" cy="15.5" r="5.5" />
+      <path d="M21 2l-9.6 9.6" />
+      <path d="M15.5 7.5l3 3L22 7l-3-3" />
+    </svg>
+  );
+}
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+function SettingsIcon({ width, height }: { width?: number; height?: number }) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
 
 interface AgentItem {
   id: string;
@@ -31,6 +64,24 @@ interface ChatPageProps {
   orgId: string;
 }
 
+const STORAGE_KEYS = { anthropic: "af_user_anthropic_key", openai: "af_user_openai_key" } as const;
+
+function getUserApiKeys() {
+  if (typeof window === "undefined") return { anthropic: null, openai: null };
+  return {
+    anthropic: localStorage.getItem(STORAGE_KEYS.anthropic),
+    openai: localStorage.getItem(STORAGE_KEYS.openai),
+  };
+}
+
+function setUserApiKey(vendor: "anthropic" | "openai", key: string) {
+  localStorage.setItem(STORAGE_KEYS[vendor], key);
+}
+
+function clearUserApiKey(vendor: "anthropic" | "openai") {
+  localStorage.removeItem(STORAGE_KEYS[vendor]);
+}
+
 export function ChatPage({ orgId }: ChatPageProps) {
   const organization = useAppStore((s) => s.organization);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -41,8 +92,16 @@ export function ChatPage({ orgId }: ChatPageProps) {
   const [loading, setLoading] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [waitingForAgent, setWaitingForAgent] = useState<{ agentId: string; agentName: string } | null>(null);
-  const [apiKeysConfigured, setApiKeysConfigured] = useState<boolean | null>(null);
+  const [userKeys, setUserKeys] = useState<{ anthropic: string | null; openai: string | null }>({ anthropic: null, openai: null });
+  const [orgKeys, setOrgKeys] = useState<{ anthropic: boolean; openai: boolean }>({ anthropic: false, openai: false });
+  const [showKeySetup, setShowKeySetup] = useState(false);
+  const [keyInputs, setKeyInputs] = useState<{ anthropic: string; openai: string }>({ anthropic: "", openai: "" });
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // When we replace a temp conv ID with a real one after streaming, we don't want
+  // the selectedConvId useEffect to refetch messages (they're already in local state).
+  const skipNextMsgFetchRef = useRef(false);
+
+  const apiKeysConfigured = !!(userKeys.anthropic || userKeys.openai || orgKeys.anthropic || orgKeys.openai);
 
   // Derive agents from store instead of separate API call
   const agents = useMemo<AgentItem[]>(() =>
@@ -61,27 +120,44 @@ export function ChatPage({ orgId }: ChatPageProps) {
   const selectedConv = conversations.find((c) => c.id === selectedConvId);
   const participants = selectedConv?.participants ?? [];
 
-  // Fetch all conversations
+  // Fetch all conversations — merge with existing list to avoid reorder/flicker.
+  // Existing conversations keep their position; new ones are prepended.
   const fetchConversations = useCallback(async () => {
     const res = await fetch(`/api/organizations/${orgId}/conversations`);
-    if (res.ok) {
-      setConversations(await res.json());
-    }
+    if (!res.ok) return;
+    const fetched: Conversation[] = await res.json();
+    setConversations((prev) => {
+      // Build a map of fetched convs for O(1) lookup
+      const fetchedMap = new Map(fetched.map((c) => [c.id, c]));
+      // Update existing entries in place (preserving order), drop ones no longer returned
+      const updated = prev
+        .filter((c) => fetchedMap.has(c.id))
+        .map((c) => fetchedMap.get(c.id)!);
+      // Prepend any brand-new conversations (not yet in local state)
+      const existingIds = new Set(updated.map((c) => c.id));
+      const newOnes = fetched.filter((c) => !existingIds.has(c.id));
+      return [...newOnes, ...updated];
+    });
   }, [orgId]);
 
   // Check if API keys are configured
   useEffect(() => {
     async function checkApiKeys() {
+      // Load user keys from localStorage
+      const localKeys = getUserApiKeys();
+      setUserKeys(localKeys);
+
       try {
         const res = await fetch(`/api/organizations/${orgId}/api-keys`);
         if (res.ok) {
           const data = await res.json();
-          setApiKeysConfigured(data.anthropic || data.openai);
-        } else {
-          setApiKeysConfigured(false);
+          setOrgKeys({
+            anthropic: !!(data.orgKeys?.anthropic),
+            openai: !!(data.orgKeys?.openai),
+          });
         }
       } catch {
-        setApiKeysConfigured(false);
+        // ignore
       }
     }
     checkApiKeys();
@@ -92,6 +168,12 @@ export function ChatPage({ orgId }: ChatPageProps) {
   useEffect(() => {
     if (!selectedConvId) {
       setMessages([]);
+      return;
+    }
+    // Skip refetch when we just promoted a temp conv ID to a real one after
+    // streaming — messages are already in local state and a refetch would flash.
+    if (skipNextMsgFetchRef.current) {
+      skipNextMsgFetchRef.current = false;
       return;
     }
     async function fetchMessages() {
@@ -220,9 +302,14 @@ export function ChatPage({ orgId }: ChatPageProps) {
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
+      const currentUserKeys = getUserApiKeys();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (currentUserKeys.anthropic) headers["X-User-Anthropic-Key"] = currentUserKeys.anthropic;
+      if (currentUserKeys.openai) headers["X-User-OpenAI-Key"] = currentUserKeys.openai;
+
       const res = await fetch(`/api/organizations/${orgId}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           agentIds,
           conversationId: convIdForApi,
@@ -232,13 +319,23 @@ export function ChatPage({ orgId }: ChatPageProps) {
 
       if (!res.ok) {
         const err = await res.json();
-        setStreamingAgent({ agentId: "", agentName: "Error", text: err.error });
+        // Remove temp user message on error
+        setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
+        if (err.error === "NO_API_KEY") {
+          setStreamingAgent({ agentId: "", agentName: "Error", text: err.message ?? "No API key configured. Please add your API key below." });
+          setShowKeySetup(true);
+        } else {
+          setStreamingAgent({ agentId: "", agentName: "Error", text: err.error });
+        }
         setIsSending(false);
         return;
       }
 
       const reader = res.body?.getReader();
       if (!reader) return;
+
+      // HTTP response received — unblock the input so user can type while streaming
+      setIsSending(false);
 
       const decoder = new TextDecoder();
       let currentAgentText = "";
@@ -324,8 +421,17 @@ export function ChatPage({ orgId }: ChatPageProps) {
             if (data.done) {
               setStreamingAgent(null);
               if (data.conversationId && data.conversationId !== selectedConvId) {
-                // Replace temp conv ID with real one
+                // Replace temp conv ID with real one. Skip the message refetch that
+                // would be triggered by the selectedConvId change — messages are
+                // already in local state and a refetch would cause a visual flash.
+                skipNextMsgFetchRef.current = true;
                 setSelectedConvId(data.conversationId);
+                // Also replace the temp entry in the conversations list with the real ID
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === selectedConvId ? { ...c, id: data.conversationId } : c
+                  )
+                );
               }
               fetchConversations();
             }
@@ -346,6 +452,19 @@ export function ChatPage({ orgId }: ChatPageProps) {
     }
   };
 
+  const handleSaveKey = (vendor: "anthropic" | "openai") => {
+    const val = keyInputs[vendor].trim();
+    if (!val) return;
+    setUserApiKey(vendor, val);
+    setUserKeys((prev) => ({ ...prev, [vendor]: val }));
+    setKeyInputs((prev) => ({ ...prev, [vendor]: "" }));
+  };
+
+  const handleClearKey = (vendor: "anthropic" | "openai") => {
+    clearUserApiKey(vendor);
+    setUserKeys((prev) => ({ ...prev, [vendor]: null }));
+  };
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -353,6 +472,8 @@ export function ChatPage({ orgId }: ChatPageProps) {
       </div>
     );
   }
+
+  const showKeySetupPanel = !apiKeysConfigured || showKeySetup;
 
   return (
     <div className="flex h-full">
@@ -372,25 +493,103 @@ export function ChatPage({ orgId }: ChatPageProps) {
       </div>
 
       {/* Main chat area */}
-      <div className="flex flex-1 flex-col">
-        {apiKeysConfigured === false && (
-          <div className="border-b border-amber-600/40 bg-amber-950/80 px-6 py-3">
-            <div className="flex items-center gap-3">
-              <svg className="h-5 w-5 shrink-0 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-              </svg>
-              <div className="text-sm">
-                <span className="font-semibold text-amber-300">API keys not configured.</span>{" "}
-                <span className="text-amber-100/90">
-                  To use the chat feature, an admin must set API keys in{" "}
-                  <a href={`/org/${orgId}/settings`} className="font-semibold text-amber-300 underline hover:text-amber-200">
-                    Settings → API Keys
-                  </a>.
-                </span>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {showKeySetupPanel && (
+          <div className="border-b border-zinc-700/50 bg-zinc-800/50 px-6 py-4">
+            <div className="flex items-start gap-3">
+              <KeyIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">API Key Required</p>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  To chat with agents, configure your personal API key. Keys are stored locally in your browser and never sent to our servers.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {/* Anthropic key row */}
+                  <div className="flex items-center gap-2">
+                    <span className="w-20 shrink-0 text-xs text-zinc-400">Anthropic</span>
+                    {userKeys.anthropic ? (
+                      <div className="flex flex-1 items-center gap-2">
+                        <span className="flex items-center gap-1 text-xs text-emerald-400">
+                          <CheckIcon className="h-3.5 w-3.5" /> Configured
+                        </span>
+                        <button
+                          onClick={() => handleClearKey("anthropic")}
+                          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-white"
+                        >
+                          <XIcon className="h-3 w-3" /> Clear
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="password"
+                          placeholder="sk-ant-..."
+                          value={keyInputs.anthropic}
+                          onChange={(e) => setKeyInputs((prev) => ({ ...prev, anthropic: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveKey("anthropic"); }}
+                          className="flex-1 rounded border border-zinc-600 bg-zinc-900 px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:border-zinc-400 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => handleSaveKey("anthropic")}
+                          disabled={!keyInputs.anthropic.trim()}
+                          className="rounded bg-zinc-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-zinc-600 disabled:opacity-40"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* OpenAI key row */}
+                  <div className="flex items-center gap-2">
+                    <span className="w-20 shrink-0 text-xs text-zinc-400">OpenAI</span>
+                    {userKeys.openai ? (
+                      <div className="flex flex-1 items-center gap-2">
+                        <span className="flex items-center gap-1 text-xs text-emerald-400">
+                          <CheckIcon className="h-3.5 w-3.5" /> Configured
+                        </span>
+                        <button
+                          onClick={() => handleClearKey("openai")}
+                          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-white"
+                        >
+                          <XIcon className="h-3 w-3" /> Clear
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="password"
+                          placeholder="sk-..."
+                          value={keyInputs.openai}
+                          onChange={(e) => setKeyInputs((prev) => ({ ...prev, openai: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveKey("openai"); }}
+                          className="flex-1 rounded border border-zinc-600 bg-zinc-900 px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:border-zinc-400 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => handleSaveKey("openai")}
+                          disabled={!keyInputs.openai.trim()}
+                          className="rounded bg-zinc-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-zinc-600 disabled:opacity-40"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {apiKeysConfigured && showKeySetup && (
+                  <button
+                    onClick={() => setShowKeySetup(false)}
+                    className="mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+                  >
+                    Close
+                  </button>
+                )}
               </div>
             </div>
           </div>
         )}
+
         {selectedConv ? (
           <>
             {/* Conversation header with participants */}
@@ -417,6 +616,15 @@ export function ChatPage({ orgId }: ChatPageProps) {
                       {p.agentName ?? "Agent"}
                     </span>
                   ))}
+                  {apiKeysConfigured && (
+                    <button
+                      onClick={() => setShowKeySetup((v) => !v)}
+                      className="rounded-full p-1 text-slate-400 hover:bg-slate-700 hover:text-white"
+                      title="Configure API keys"
+                    >
+                      <SettingsIcon width={16} height={16} />
+                    </button>
+                  )}
                   <button
                     onClick={handleNewConversation}
                     className="rounded-full p-1 text-slate-400 hover:bg-slate-700 hover:text-white"
@@ -436,7 +644,11 @@ export function ChatPage({ orgId }: ChatPageProps) {
               streamingAgent={streamingAgent}
               waitingForAgent={waitingForAgent}
             />
-            <ChatInput onSend={handleSendMessage} disabled={isSending} />
+            <ChatInput
+              onSend={handleSendMessage}
+              disabled={isSending || !apiKeysConfigured}
+              placeholder={!apiKeysConfigured ? "Configure an API key to start chatting" : undefined}
+            />
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center">

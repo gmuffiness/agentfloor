@@ -11,7 +11,9 @@ import { generateTileset, createTiledGround } from "./TilesetGenerator";
 import { createEnvironmentAnimations, type AnimatedDecoration } from "./EnvironmentAnimations";
 import { getThemePalette } from "./MapThemes";
 import MapControls from "./MapControls";
+import Minimap from "./Minimap";
 import DialogueOverlay from "./DialogueOverlay";
+import AgentStatCard from "./AgentStatCard";
 import type { Agent } from "@/types";
 import { getVendorColor } from "@/lib/utils";
 
@@ -421,6 +423,7 @@ export default function SpatialCanvas() {
   const dragRef = useRef<DragState>({ active: false, avatar: null, agent: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false });
   const [nearbyAgentName, setNearbyAgentName] = useState<string | null>(null);
   const [dialogueAgent, setDialogueAgent] = useState<Agent | null>(null);
+  const [worldDims, setWorldDims] = useState({ width: MIN_WORLD_WIDTH, height: MIN_WORLD_HEIGHT });
   const dialogueOpenRef = useRef(false);
   const organization = useAppStore((s) => s.organization);
   const mapTheme = useAppStore((s) => s.mapTheme);
@@ -546,6 +549,7 @@ export default function SpatialCanvas() {
 
       viewport.worldWidth = worldWidth;
       viewport.worldHeight = worldHeight;
+      setWorldDims({ width: worldWidth, height: worldHeight });
 
       // Generate tileset and tiled ground layer
       const tileset = generateTileset(app.renderer, palette);
@@ -860,6 +864,17 @@ export default function SpatialCanvas() {
     }
   }, []);
 
+  const getViewportBounds = useCallback(() => {
+    const vp = viewportRef.current;
+    if (!vp) return null;
+    return {
+      x: vp.left,
+      y: vp.top,
+      width: vp.worldScreenWidth,
+      height: vp.worldScreenHeight,
+    };
+  }, []);
+
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
@@ -910,6 +925,16 @@ export default function SpatialCanvas() {
         onZoomOut={handleZoomOut}
         onFitAll={handleFitAll}
       />
+
+      <Minimap
+        departments={organization.departments}
+        worldWidth={worldDims.width}
+        worldHeight={worldDims.height}
+        getViewportBounds={getViewportBounds}
+      />
+
+      {/* RPG Agent Stat Card — bottom-left, above minimap */}
+      <AgentStatCard />
     </div>
   );
 }

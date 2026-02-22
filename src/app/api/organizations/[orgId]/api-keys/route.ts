@@ -32,8 +32,10 @@ export async function GET(
 
   // Never expose actual keys — only return whether they are set
   return NextResponse.json({
-    anthropic: !!org.anthropic_api_key,
-    openai: !!org.openai_api_key,
+    orgKeys: {
+      anthropic: !!org.anthropic_api_key,
+      openai: !!org.openai_api_key,
+    },
   });
 }
 
