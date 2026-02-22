@@ -495,18 +495,18 @@ export function ChatPage({ orgId }: ChatPageProps) {
       {/* Main chat area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {showKeySetupPanel && (
-          <div className="border-b border-zinc-700/50 bg-zinc-800/50 px-6 py-4">
+          <div className="border-b border-slate-700/50 bg-slate-900 px-6 py-4">
             <div className="flex items-start gap-3">
               <KeyIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white">API Key Required</p>
-                <p className="mt-0.5 text-xs text-zinc-400">
+                <p className="mt-0.5 text-xs text-slate-400">
                   To chat with agents, configure your personal API key. Keys are stored locally in your browser and never sent to our servers.
                 </p>
                 <div className="mt-3 space-y-2">
                   {/* Anthropic key row */}
                   <div className="flex items-center gap-2">
-                    <span className="w-20 shrink-0 text-xs text-zinc-400">Anthropic</span>
+                    <span className="w-20 shrink-0 text-xs text-slate-400">Anthropic</span>
                     {userKeys.anthropic ? (
                       <div className="flex flex-1 items-center gap-2">
                         <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -514,7 +514,7 @@ export function ChatPage({ orgId }: ChatPageProps) {
                         </span>
                         <button
                           onClick={() => handleClearKey("anthropic")}
-                          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-white"
+                          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-white"
                         >
                           <XIcon className="h-3 w-3" /> Clear
                         </button>
@@ -527,12 +527,12 @@ export function ChatPage({ orgId }: ChatPageProps) {
                           value={keyInputs.anthropic}
                           onChange={(e) => setKeyInputs((prev) => ({ ...prev, anthropic: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === "Enter") handleSaveKey("anthropic"); }}
-                          className="flex-1 rounded border border-zinc-600 bg-zinc-900 px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:border-zinc-400 focus:outline-none"
+                          className="flex-1 rounded border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:border-slate-400 focus:outline-none"
                         />
                         <button
                           onClick={() => handleSaveKey("anthropic")}
                           disabled={!keyInputs.anthropic.trim()}
-                          className="rounded bg-zinc-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-zinc-600 disabled:opacity-40"
+                          className="rounded bg-slate-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-600 disabled:opacity-40"
                         >
                           Save
                         </button>
@@ -542,7 +542,7 @@ export function ChatPage({ orgId }: ChatPageProps) {
 
                   {/* OpenAI key row */}
                   <div className="flex items-center gap-2">
-                    <span className="w-20 shrink-0 text-xs text-zinc-400">OpenAI</span>
+                    <span className="w-20 shrink-0 text-xs text-slate-400">OpenAI</span>
                     {userKeys.openai ? (
                       <div className="flex flex-1 items-center gap-2">
                         <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -550,7 +550,7 @@ export function ChatPage({ orgId }: ChatPageProps) {
                         </span>
                         <button
                           onClick={() => handleClearKey("openai")}
-                          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-white"
+                          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-white"
                         >
                           <XIcon className="h-3 w-3" /> Clear
                         </button>
@@ -563,12 +563,12 @@ export function ChatPage({ orgId }: ChatPageProps) {
                           value={keyInputs.openai}
                           onChange={(e) => setKeyInputs((prev) => ({ ...prev, openai: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === "Enter") handleSaveKey("openai"); }}
-                          className="flex-1 rounded border border-zinc-600 bg-zinc-900 px-2.5 py-1 text-xs text-white placeholder-zinc-500 focus:border-zinc-400 focus:outline-none"
+                          className="flex-1 rounded border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:border-slate-400 focus:outline-none"
                         />
                         <button
                           onClick={() => handleSaveKey("openai")}
                           disabled={!keyInputs.openai.trim()}
-                          className="rounded bg-zinc-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-zinc-600 disabled:opacity-40"
+                          className="rounded bg-slate-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-600 disabled:opacity-40"
                         >
                           Save
                         </button>
@@ -580,7 +580,7 @@ export function ChatPage({ orgId }: ChatPageProps) {
                 {apiKeysConfigured && showKeySetup && (
                   <button
                     onClick={() => setShowKeySetup(false)}
-                    className="mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+                    className="mt-2 text-xs text-slate-500 hover:text-slate-300"
                   >
                     Close
                   </button>
