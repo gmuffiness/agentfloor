@@ -21,7 +21,8 @@ export async function GET(
     .eq("is_active", true);
 
   if (subsError) {
-    return NextResponse.json({ error: subsError.message }, { status: 500 });
+    console.error("[organizations/costs] Failed to fetch subscriptions:", subsError);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   const subscriptions = subs || [];

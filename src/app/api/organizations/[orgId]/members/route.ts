@@ -27,7 +27,8 @@ export async function GET(
     .order("joined_at", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/members] Failed to fetch members:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Get invite code (only if admin)

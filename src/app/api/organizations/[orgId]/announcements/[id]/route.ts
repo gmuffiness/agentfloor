@@ -94,7 +94,8 @@ export async function DELETE(
     .eq("org_id", orgId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/announcements/id] Failed to delete announcement:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ message: "Announcement deleted" });

@@ -170,8 +170,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     .eq("id", id);
 
   if (updateError) {
+    console.error("[cli/agents] Failed to update agent:", updateError);
     return NextResponse.json(
-      { error: `Failed to update agent: ${updateError.message}` },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }
@@ -213,8 +214,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     .eq("id", id);
 
   if (deleteError) {
+    console.error("[cli/agents] Failed to delete agent:", deleteError);
     return NextResponse.json(
-      { error: `Failed to delete agent: ${deleteError.message}` },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

@@ -41,7 +41,8 @@ export async function GET(
       .order("updated_at", { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("[organizations/conversations] Failed to fetch conversations by agent:", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 
     const conversations = await enrichConversations(supabase, data ?? []);
@@ -56,7 +57,8 @@ export async function GET(
     .order("updated_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/conversations] Failed to fetch conversations:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   const conversations = await enrichConversations(supabase, data ?? []);

@@ -19,7 +19,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .eq("org_id", orgId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/departments] Failed to fetch departments:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   const deptIds = (rows ?? []).map((d) => d.id);
@@ -87,7 +88,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/departments] Failed to create department:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ id, message: "Department created" }, { status: 201 });

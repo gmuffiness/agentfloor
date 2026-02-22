@@ -8,6 +8,7 @@ import { useOrgId } from "@/hooks/useOrgId";
 import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
 import { MAP_THEMES, type MapThemeId } from "@/components/spatial/MapThemes";
+import { getSupabase } from "@/db/supabase";
 
 interface Member {
   id: string;
@@ -412,440 +413,395 @@ export default function SettingsPage() {
     );
   }
 
+  /* ── Shared card style tokens ── */
+  const card = "rounded-lg border border-slate-700/80 bg-slate-900 shadow-sm";
+  const cardHeader = "flex items-center gap-3 border-b border-slate-700/60 px-5 py-4";
+  const cardBody = "px-5 py-5";
+  const sectionIcon = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-800 text-slate-400";
+  const inputBase = "rounded-md border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 transition-colors focus:border-amber-500/60 focus:outline-none focus:ring-1 focus:ring-amber-500/30 disabled:opacity-50";
+  const btnPrimary = "rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-500 disabled:opacity-50";
+  const btnSecondary = "rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-750 hover:text-white disabled:opacity-50";
+  const labelText = "text-xs font-medium uppercase tracking-wide text-slate-400";
+  const descText = "text-sm leading-relaxed text-slate-400";
+
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <h1 className="mb-6 text-2xl font-bold text-white">Settings</h1>
-
-      {/* Organization Card */}
-      <div className="relative mb-8 rounded-lg border border-slate-700 bg-slate-800/50 p-6">
-        {!isAdmin && <AdminOverlay />}
-        <h2 className="mb-1 text-lg font-semibold text-white">Organization</h2>
-        <p className="mb-4 text-sm text-slate-300">
-          Update your organization name and monthly budget limit.
-        </p>
-        <form onSubmit={handleSaveOrg} className="space-y-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">Organization Name</label>
-            <input
-              type="text"
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              required
-              disabled={!isAdmin}
-              className="w-80 rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">Monthly Budget (USD)</label>
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              value={orgBudget}
-              onChange={(e) => setOrgBudget(parseFloat(e.target.value))}
-              required
-              disabled={!isAdmin}
-              className="w-48 rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">Visibility</label>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setOrgVisibility("private")}
-                disabled={!isAdmin}
-                className={cn(
-                  "rounded border px-4 py-2 text-sm font-medium transition-colors",
-                  orgVisibility === "private"
-                    ? "border-blue-500 bg-blue-500/10 text-blue-300"
-                    : "border-slate-600 bg-slate-900 text-slate-400 hover:border-slate-500",
-                )}
-              >
-                Private
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrgVisibility("public")}
-                disabled={!isAdmin}
-                className={cn(
-                  "rounded border px-4 py-2 text-sm font-medium transition-colors",
-                  orgVisibility === "public"
-                    ? "border-blue-500 bg-blue-500/10 text-blue-300"
-                    : "border-slate-600 bg-slate-900 text-slate-400 hover:border-slate-500",
-                )}
-              >
-                Public
-              </button>
-            </div>
-            <p className="text-xs text-slate-400">
-              {orgVisibility === "private"
-                ? "Only invited members can see this organization."
-                : "Anyone can discover this organization."}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={orgSaving || !isAdmin}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-            >
-              {orgSaving ? "Saving..." : "Save Changes"}
-            </button>
-            {orgSaveResult && (
-              <p
-                className={cn(
-                  "text-sm",
-                  orgSaveResult.type === "success" ? "text-green-400" : "text-red-400",
-                )}
-              >
-                {orgSaveResult.message}
-              </p>
-            )}
-          </div>
-        </form>
-      </div>
-
-      {/* API Keys Card */}
-      <div className="mb-8 overflow-hidden rounded border border-slate-700">
-        <div className="bg-slate-800 px-4 py-3">
-          <h2 className="text-sm font-medium text-slate-300">API Keys</h2>
-        </div>
-        <div className="bg-slate-900 p-6">
-        <p className="mb-4 text-sm text-white">
-          Set vendor API keys for this organization. These keys are used for the Chat feature. Keys are stored securely and never exposed to the client.
-        </p>
-
-        {/* Current status */}
-        <div className="mb-4 flex gap-4">
-          <div className="flex items-center gap-2">
-            <span className={cn("h-2 w-2 rounded-full", apiKeysStatus.anthropic ? "bg-green-400" : "bg-slate-600")} />
-            <span className="text-sm text-white">Anthropic</span>
-            {apiKeysStatus.anthropic && (
-              <button onClick={() => handleClearApiKey("anthropic")} className="text-xs text-red-400 hover:text-red-300">Clear</button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={cn("h-2 w-2 rounded-full", apiKeysStatus.openai ? "bg-green-400" : "bg-slate-600")} />
-            <span className="text-sm text-white">OpenAI</span>
-            {apiKeysStatus.openai && (
-              <button onClick={() => handleClearApiKey("openai")} className="text-xs text-red-400 hover:text-red-300">Clear</button>
-            )}
-          </div>
-        </div>
-
-        <form onSubmit={handleSaveApiKeys} className="space-y-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">Anthropic API Key</label>
-            <input
-              type="password"
-              value={anthropicKey}
-              onChange={(e) => setAnthropicKey(e.target.value)}
-              placeholder={apiKeysStatus.anthropic ? "••••••••••••••• (already set)" : "sk-ant-..."}
-              className="w-96 rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">OpenAI API Key</label>
-            <input
-              type="password"
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-              placeholder={apiKeysStatus.openai ? "••••••••••••••• (already set)" : "sk-..."}
-              className="w-96 rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={apiKeysSaving || (!anthropicKey && !openaiKey)}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-            >
-              {apiKeysSaving ? "Saving..." : "Save API Keys"}
-            </button>
-            {apiKeysResult && (
-              <p className={cn("text-sm", apiKeysResult.type === "success" ? "text-green-400" : "text-red-400")}>
-                {apiKeysResult.message}
-              </p>
-            )}
-          </div>
-        </form>
-        </div>
-      </div>
-
-      {/* Invite Code Card */}
-      <div className="relative mb-8 rounded-lg border border-slate-700 bg-slate-800/50 p-6">
-        {!isAdmin && <AdminOverlay />}
-        <h2 className="mb-1 text-lg font-semibold text-white">
-          Invite Code
-        </h2>
-        <p className="mb-4 text-sm text-slate-300">
-          Share this code with teammates to let them join your organization.
-        </p>
-        <div className="flex items-center gap-3">
-          <code className="rounded bg-slate-900 px-4 py-2 font-mono text-lg tracking-widest text-white">
-            {inviteCode ?? "••••••"}
-          </code>
-          <button
-            onClick={handleCopyCode}
-            disabled={!isAdmin}
-            className="rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-50"
-          >
-            {copied ? "Copied!" : "Copy"}
-          </button>
-          <button
-            onClick={handleRegenerateCode}
-            disabled={!isAdmin}
-            className="rounded bg-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-600 hover:text-white disabled:opacity-50"
-          >
-            Regenerate
-          </button>
-        </div>
-      </div>
-
-      {/* Invite by Email */}
-      <div className="relative mb-8 rounded-lg border border-slate-700 bg-slate-800/50 p-6">
-        {!isAdmin && <AdminOverlay />}
-        <h2 className="mb-1 text-lg font-semibold text-white">
-          Invite by Email
-        </h2>
-        <p className="mb-4 text-sm text-slate-300">
-          Send an email invitation with a magic link. The recipient will be
-          automatically added to this organization.
-        </p>
-        <form onSubmit={handleSendInvite} className="flex items-center gap-3">
-          <input
-            type="email"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="colleague@example.com"
-            required
-            disabled={!isAdmin}
-            className="w-72 rounded border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={inviteSending || !isAdmin}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-          >
-            {inviteSending ? "Sending..." : "Send Invite"}
-          </button>
-        </form>
-        {inviteResult && (
-          <p
-            className={cn(
-              "mt-3 text-sm",
-              inviteResult.type === "success"
-                ? "text-green-400"
-                : "text-red-400",
-            )}
-          >
-            {inviteResult.message}
-          </p>
-        )}
-      </div>
-
-      {/* GitHub Integration */}
-      <div className="relative mb-8 rounded-lg border border-slate-700 bg-slate-800/50 p-6">
-        {!isAdmin && <AdminOverlay />}
-          <h2 className="mb-1 text-lg font-semibold text-white">GitHub Integration</h2>
-          <p className="mb-4 text-sm text-slate-300">
-            Connect a GitHub account to allow cloud-runtime agents to access private repositories.
-          </p>
-
-          {githubLoading ? (
-            <p className="text-sm text-slate-500">Loading...</p>
-          ) : (
-            <>
-              {githubInstallations.length > 0 && (
-                <div className="mb-4 space-y-3">
-                  {githubInstallations.map((inst) => (
-                    <div
-                      key={inst.id}
-                      className="flex items-center justify-between rounded border border-slate-600 bg-slate-900 px-4 py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <svg className="h-5 w-5 text-slate-300" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-                        </svg>
-                        <div>
-                          <span className="font-medium text-white">{inst.github_account_login}</span>
-                          <span className="ml-2 rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-400">
-                            {inst.github_account_type}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDisconnectGitHub(inst.id)}
-                        className="rounded px-3 py-1 text-sm text-red-400 hover:bg-red-500/20"
-                      >
-                        Disconnect
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {githubAvailable.length > 0 && (
-                <div className="mb-3">
-                  <p className="mb-2 text-sm text-slate-400">
-                    The following GitHub accounts have the App installed but are not linked to this organization:
-                  </p>
-                  <div className="space-y-2">
-                    {githubAvailable.map((inst) => (
-                      <div key={inst.installation_id} className="flex items-center justify-between rounded border border-dashed border-slate-600 px-4 py-2">
-                        <div className="flex items-center gap-3">
-                          <svg className="h-5 w-5 text-slate-400" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-                          </svg>
-                          <div>
-                            <span className="font-medium text-white">{inst.account_login}</span>
-                            <span className="ml-2 rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-400">
-                              {inst.account_type}
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleLinkInstallation(inst.installation_id)}
-                          disabled={linkingInstallation === inst.installation_id}
-                          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-                        >
-                          {linkingInstallation === inst.installation_id ? "Linking..." : "Link"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {githubInstallUrl && (
-                <a
-                  href={githubInstallUrl}
-                  className="inline-flex items-center gap-2 rounded bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-600"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-                  </svg>
-                  {githubInstallations.length > 0 ? "Connect Another Account" : "Connect GitHub"}
-                </a>
-              )}
-
-              {!githubInstallUrl && githubInstallations.length === 0 && (
-                <p className="text-sm text-slate-500">
-                  GitHub App is not configured. Set GITHUB_APP_CLIENT_ID in environment variables.
-                </p>
-              )}
-            </>
-          )}
-        </div>
-
-      {/* Map Theme */}
-      <div className="mb-8 overflow-hidden rounded border border-slate-700">
-        <div className="bg-slate-800 px-4 py-3">
-          <h2 className="text-sm font-medium text-slate-300">Map Theme</h2>
-        </div>
-        <div className="bg-slate-900 p-6">
-          <p className="mb-4 text-sm text-white">
-            Choose the visual theme for the spatial map. Changes apply instantly.
-          </p>
-          <div className="flex gap-4">
-            {MAP_THEMES.map((theme) => {
-              const selected = mapTheme === theme.id;
-              const swatches = [
-                theme.grass[0], theme.grass[1], theme.grass[2],
-                theme.dirt,
-                theme.water[0], theme.treeTrunk,
-                theme.treeLeaves, theme.stoneColor,
-                theme.bushColor, theme.flowerColors[0],
-                theme.campfireFlames[1], theme.waterWave,
-              ];
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => setMapTheme(theme.id as MapThemeId)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
-                    selected
-                      ? "border-blue-500 bg-blue-500/10"
-                      : "border-slate-600 bg-slate-800 hover:border-slate-500",
-                  )}
-                >
-                  <div className="grid grid-cols-4 gap-1">
-                    {swatches.map((color, i) => (
-                      <div
-                        key={i}
-                        className="h-4 w-4 rounded-sm"
-                        style={{ backgroundColor: `#${color.toString(16).padStart(6, "0")}` }}
-                      />
-                    ))}
-                  </div>
-                  <span className={cn("text-sm font-medium", selected ? "text-blue-300" : "text-white")}>
-                    {theme.name}
-                  </span>
-                  <span className="text-xs text-slate-400">{theme.description}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* My Subscriptions */}
-      <div className="mb-8 overflow-hidden rounded border border-slate-700">
-        <div className="bg-slate-800 px-4 py-3">
-          <h2 className="text-sm font-medium text-slate-300">My Subscriptions</h2>
-        </div>
-        <div className="bg-slate-900 p-6">
-          <p className="mb-4 text-sm text-white">
-            Manage your AI service subscriptions. Auto-detected services from CLI push will appear here.
-          </p>
-          <SubscriptionManager orgId={orgId} memberId={currentMemberId} isAdmin={isAdmin} />
-        </div>
-      </div>
-
-      {/* Members Table */}
+    <div className="mx-auto max-w-5xl p-6 pb-20">
+      {/* Page header */}
       <div className="mb-8">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">
-            Members ({members.length})
-          </h2>
-        </div>
-        <DataTable
-          columns={columns}
-          data={members}
-          searchPlaceholder="Search members..."
-          searchKeys={["name", "email", "role"]}
-        />
+        <h1 className="text-2xl font-bold tracking-tight text-slate-100">Settings</h1>
+        <p className="mt-1 text-sm text-slate-500">Manage your organization, integrations, and team.</p>
       </div>
 
-      {/* Danger Zone */}
-      {isAdmin && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/20 p-6">
-          <h2 className="mb-1 text-lg font-semibold text-red-400">Danger Zone</h2>
-          <p className="mb-4 text-sm text-slate-300">
-            Permanently delete this organization and all its data including departments, agents, and cost history. This action cannot be undone.
-          </p>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-300">
-                Type <span className="font-mono text-slate-300">{orgName}</span> to confirm
-              </label>
-              <input
-                type="text"
-                value={deleteConfirmText}
-                onChange={(e) => setDeleteConfirmText(e.target.value)}
-                placeholder={orgName}
-                className="w-80 rounded border border-red-900/50 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-red-500 focus:outline-none"
-              />
+      {/* ═══════ GENERAL section ═══════ */}
+      <div className="mb-10">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">General</h2>
+
+        {/* Organization + Invite Code — 2-column */}
+        <div className="grid gap-5 lg:grid-cols-5">
+          {/* Organization — 3 cols */}
+          <div className={cn(card, "relative lg:col-span-3")}>
+            {!isAdmin && <AdminOverlay />}
+            <div className={cardHeader}>
+              <div className={sectionIcon}>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-200">Organization</h3>
+                <p className="text-xs text-slate-500">Name, budget, and visibility</p>
+              </div>
+            </div>
+            <div className={cardBody}>
+              <form onSubmit={handleSaveOrg} className="space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelText}>Organization Name</label>
+                  <input type="text" value={orgName} onChange={(e) => setOrgName(e.target.value)} required disabled={!isAdmin} className={cn(inputBase, "max-w-sm")} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelText}>Monthly Budget (USD)</label>
+                  <input type="number" min={0} step={0.01} value={orgBudget} onChange={(e) => setOrgBudget(parseFloat(e.target.value))} required disabled={!isAdmin} className={cn(inputBase, "w-44")} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelText}>Visibility</label>
+                  <div className="flex gap-2">
+                    {(["private", "public"] as const).map((v) => (
+                      <button key={v} type="button" onClick={() => setOrgVisibility(v)} disabled={!isAdmin}
+                        className={cn("rounded-md border px-4 py-2 text-sm font-medium capitalize transition-colors",
+                          orgVisibility === v ? "border-amber-500/50 bg-amber-500/10 text-amber-300" : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600")} >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {orgVisibility === "private" ? "Only invited members can see this organization." : "Anyone can discover this organization."}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 pt-1">
+                  <button type="submit" disabled={orgSaving || !isAdmin} className={btnPrimary}>
+                    {orgSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                  {orgSaveResult && (
+                    <p className={cn("text-sm", orgSaveResult.type === "success" ? "text-emerald-400" : "text-red-400")}>{orgSaveResult.message}</p>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* Invite Code + Email — 2 cols */}
+          <div className="flex flex-col gap-5 lg:col-span-2">
+            {/* Invite Code */}
+            <div className={cn(card, "relative flex-1")}>
+              {!isAdmin && <AdminOverlay />}
+              <div className={cardHeader}>
+                <div className={sectionIcon}>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
+                </div>
+                <h3 className="text-sm font-semibold text-slate-200">Invite Code</h3>
+              </div>
+              <div className={cardBody}>
+                <p className={cn(descText, "mb-3")}>Share this code with teammates.</p>
+                <div className="mb-3 flex items-center gap-2">
+                  <code className="rounded-md border border-slate-700 bg-slate-800 px-4 py-2 font-mono text-lg tracking-[0.25em] text-amber-300">
+                    {inviteCode ?? "------"}
+                  </code>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleCopyCode} disabled={!isAdmin} className={btnSecondary}>
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                  <button onClick={handleRegenerateCode} disabled={!isAdmin} className={btnSecondary}>
+                    Regenerate
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Invite by Email */}
+            <div className={cn(card, "relative flex-1")}>
+              {!isAdmin && <AdminOverlay />}
+              <div className={cardHeader}>
+                <div className={sectionIcon}>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>
+                </div>
+                <h3 className="text-sm font-semibold text-slate-200">Invite by Email</h3>
+              </div>
+              <div className={cardBody}>
+                <p className={cn(descText, "mb-3")}>Send a magic link invitation.</p>
+                <form onSubmit={handleSendInvite} className="flex flex-col gap-2">
+                  <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="colleague@example.com" required disabled={!isAdmin} className={cn(inputBase, "w-full")} />
+                  <button type="submit" disabled={inviteSending || !isAdmin} className={btnPrimary}>
+                    {inviteSending ? "Sending..." : "Send Invite"}
+                  </button>
+                </form>
+                {inviteResult && (
+                  <p className={cn("mt-2 text-sm", inviteResult.type === "success" ? "text-emerald-400" : "text-red-400")}>{inviteResult.message}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════ INTEGRATIONS section ═══════ */}
+      <div className="mb-10">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Integrations</h2>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          {/* API Keys */}
+          <div className={card}>
+            <div className={cardHeader}>
+              <div className={sectionIcon}>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0 1 19.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 0 0 4.5 10.5a48.667 48.667 0 0 0-1.26 8.25m17.745-4.5a7.5 7.5 0 0 0-7.5-7.5H12a48.667 48.667 0 0 0 0 15m0 0h.375a7.5 7.5 0 0 0 7.125-5.25" /></svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-200">API Keys</h3>
+                <p className="text-xs text-slate-500">For Chat feature</p>
+              </div>
+            </div>
+            <div className={cardBody}>
+              {/* Status indicators */}
+              <div className="mb-4 flex gap-4">
+                {(["anthropic", "openai"] as const).map((vendor) => (
+                  <div key={vendor} className="flex items-center gap-2">
+                    <span className={cn("h-2 w-2 rounded-full", apiKeysStatus[vendor] ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.4)]" : "bg-slate-600")} />
+                    <span className="text-sm capitalize text-slate-300">{vendor}</span>
+                    {apiKeysStatus[vendor] && (
+                      <button onClick={() => handleClearApiKey(vendor)} className="text-xs text-red-400 transition-colors hover:text-red-300">Clear</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={handleSaveApiKeys} className="space-y-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelText}>Anthropic API Key</label>
+                  <input type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder={apiKeysStatus.anthropic ? "already set" : "sk-ant-..."} className={cn(inputBase, "w-full")} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelText}>OpenAI API Key</label>
+                  <input type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder={apiKeysStatus.openai ? "already set" : "sk-..."} className={cn(inputBase, "w-full")} />
+                </div>
+                <div className="flex items-center gap-3 pt-1">
+                  <button type="submit" disabled={apiKeysSaving || (!anthropicKey && !openaiKey)} className={btnPrimary}>
+                    {apiKeysSaving ? "Saving..." : "Save API Keys"}
+                  </button>
+                  {apiKeysResult && (
+                    <p className={cn("text-sm", apiKeysResult.type === "success" ? "text-emerald-400" : "text-red-400")}>{apiKeysResult.message}</p>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* GitHub Integration */}
+          <div className={cn(card, "relative")}>
+            {!isAdmin && <AdminOverlay />}
+            <div className={cardHeader}>
+              <div className={sectionIcon}>
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" /></svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-200">GitHub</h3>
+                <p className="text-xs text-slate-500">Private repo access for agents</p>
+              </div>
+            </div>
+            <div className={cardBody}>
+              {githubLoading ? (
+                <p className="text-sm text-slate-500">Loading...</p>
+              ) : (
+                <>
+                  {githubInstallations.length > 0 && (
+                    <div className="mb-4 space-y-2">
+                      {githubInstallations.map((inst) => (
+                        <div key={inst.id} className="flex items-center justify-between rounded-md border border-slate-700 bg-slate-800/60 px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <svg className="h-4 w-4 text-slate-400" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" /></svg>
+                            <span className="text-sm font-medium text-slate-200">{inst.github_account_login}</span>
+                            <span className="rounded-full bg-slate-700/60 px-2 py-0.5 text-xs text-slate-400">{inst.github_account_type}</span>
+                          </div>
+                          <button onClick={() => handleDisconnectGitHub(inst.id)} className="rounded-md px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10">Disconnect</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {githubAvailable.length > 0 && (
+                    <div className="mb-3">
+                      <p className="mb-2 text-xs text-slate-500">Available to link:</p>
+                      <div className="space-y-2">
+                        {githubAvailable.map((inst) => (
+                          <div key={inst.installation_id} className="flex items-center justify-between rounded-md border border-dashed border-slate-700 px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <svg className="h-4 w-4 text-slate-500" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" /></svg>
+                              <span className="text-sm text-slate-300">{inst.account_login}</span>
+                              <span className="rounded-full bg-slate-700/60 px-2 py-0.5 text-xs text-slate-500">{inst.account_type}</span>
+                            </div>
+                            <button onClick={() => handleLinkInstallation(inst.installation_id)} disabled={linkingInstallation === inst.installation_id} className={btnPrimary}>
+                              {linkingInstallation === inst.installation_id ? "Linking..." : "Link"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {githubInstallUrl && (
+                    <a href={githubInstallUrl} className={cn(btnSecondary, "inline-flex items-center gap-2")}>
+                      <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" /></svg>
+                      {githubInstallations.length > 0 ? "Connect Another Account" : "Connect GitHub"}
+                    </a>
+                  )}
+
+                  {!githubInstallUrl && githubInstallations.length === 0 && (
+                    <p className="text-xs text-slate-500">GitHub App not configured. Set GITHUB_APP_CLIENT_ID in env.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════ PREFERENCES section ═══════ */}
+      <div className="mb-10">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Preferences</h2>
+
+        {/* Map Theme */}
+        <div className={cn(card, "mb-5")}>
+          <div className={cardHeader}>
+            <div className={sectionIcon}>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>
             </div>
             <div>
-              <button
-                onClick={handleDeleteOrg}
-                disabled={deleteConfirmText !== orgName || deleteLoading}
-                className="rounded bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {deleteLoading ? "Deleting..." : "Delete Organization"}
-              </button>
+              <h3 className="text-sm font-semibold text-slate-200">Map Theme</h3>
+              <p className="text-xs text-slate-500">Visual theme for the spatial map</p>
+            </div>
+          </div>
+          <div className={cardBody}>
+            <div className="flex flex-wrap gap-3">
+              {MAP_THEMES.map((theme) => {
+                const selected = mapTheme === theme.id;
+                const swatches = [
+                  theme.grass[0], theme.grass[1], theme.grass[2], theme.dirt,
+                  theme.water[0], theme.treeTrunk, theme.treeLeaves, theme.stoneColor,
+                  theme.bushColor, theme.flowerColors[0], theme.campfireFlames[1], theme.waterWave,
+                ];
+                return (
+                  <button key={theme.id} onClick={() => setMapTheme(theme.id as MapThemeId)}
+                    className={cn("flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-all",
+                      selected ? "border-amber-500/60 bg-amber-500/5 shadow-[0_0_12px_rgba(217,119,6,0.1)]" : "border-slate-700 bg-slate-800/60 hover:border-slate-600")} >
+                    <div className="grid grid-cols-4 gap-1">
+                      {swatches.map((color, i) => (
+                        <div key={i} className="h-3.5 w-3.5 rounded-sm" style={{ backgroundColor: `#${color.toString(16).padStart(6, "0")}` }} />
+                      ))}
+                    </div>
+                    <span className={cn("text-xs font-medium", selected ? "text-amber-300" : "text-slate-300")}>{theme.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Subscriptions */}
+        <div className={card}>
+          <div className={cardHeader}>
+            <div className={sectionIcon}>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">My Subscriptions</h3>
+              <p className="text-xs text-slate-500">AI service subscriptions</p>
+            </div>
+          </div>
+          <div className={cardBody}>
+            <SubscriptionManager orgId={orgId} memberId={currentMemberId} isAdmin={isAdmin} />
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════ TEAM section ═══════ */}
+      <div className="mb-10">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Team</h2>
+        <div className={card}>
+          <div className={cardHeader}>
+            <div className={sectionIcon}>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
+            </div>
+            <h3 className="text-sm font-semibold text-slate-200">Members ({members.length})</h3>
+          </div>
+          <div className="p-0">
+            <DataTable
+              columns={columns}
+              data={members}
+              searchPlaceholder="Search members..."
+              searchKeys={["name", "email", "role"]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════ ACCOUNT section ═══════ */}
+      <div className="mb-10">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Account</h2>
+        <div className={cn(card, "flex items-center justify-between px-5 py-4")}>
+          <div className="flex items-center gap-3">
+            <div className={sectionIcon}>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" /></svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Sign Out</h3>
+              <p className="text-xs text-slate-500">Log out of AgentFactorio on this device</p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              const supabase = getSupabase();
+              await supabase.auth.signOut();
+              router.push("/");
+            }}
+            className={btnSecondary}
+          >
+            Log Out
+          </button>
+        </div>
+      </div>
+
+      {/* ═══════ DANGER ZONE ═══════ */}
+      {isAdmin && (
+        <div className="mb-10">
+          <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-red-500/80">Danger Zone</h2>
+          <div className="rounded-lg border border-red-900/40 bg-red-950/10 p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-950/50 text-red-400">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-red-400">Delete Organization</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Permanently remove this organization and all data. This cannot be undone.
+                </p>
+                <div className="mt-4 flex flex-col gap-2">
+                  <label className="text-xs font-medium text-slate-400">
+                    Type <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-slate-300">{orgName}</code> to confirm
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder={orgName}
+                    className={cn(inputBase, "max-w-sm border-red-900/40 focus:border-red-500/60 focus:ring-red-500/30")}
+                  />
+                  <div>
+                    <button
+                      onClick={handleDeleteOrg}
+                      disabled={deleteConfirmText !== orgName || deleteLoading}
+                      className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {deleteLoading ? "Deleting..." : "Delete Organization"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

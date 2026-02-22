@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
     .upsert(inserts, { onConflict: "announcement_id,agent_id" });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[cli/announcements/ack] Failed to upsert acknowledgements:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, count: announcementIds.length });

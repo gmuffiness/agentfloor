@@ -208,7 +208,19 @@ export default async function ExploreOrgDetailPage({
               </div>
             )}
           </div>
-          <ForkButton orgId={org.id} orgName={org.name} />
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/org/${org.id}/overview`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.573-3.007-9.963-7.178z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Preview
+            </Link>
+            <ForkButton orgId={org.id} orgName={org.name} />
+          </div>
         </div>
 
         {/* Stats */}

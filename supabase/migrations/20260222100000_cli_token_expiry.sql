@@ -1,0 +1,2 @@
+ALTER TABLE cli_auth_tokens
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '90 days');

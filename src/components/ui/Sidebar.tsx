@@ -215,7 +215,11 @@ export function Sidebar() {
 
       {/* Current User */}
       {currentUser && (
-        <div className="border-t border-slate-700/50 px-3 py-3">
+        <Link
+          href={`${orgBase}/settings`}
+          title={collapsed ? currentUser.name : "Settings"}
+          className="block border-t border-slate-700/50 px-3 py-3 hover:bg-slate-800 transition-colors"
+        >
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-medium text-white">
               {currentUser.name.charAt(0).toUpperCase()}
@@ -229,7 +233,7 @@ export function Sidebar() {
               </div>
             )}
           </div>
-        </div>
+        </Link>
       )}
     </aside>
   );

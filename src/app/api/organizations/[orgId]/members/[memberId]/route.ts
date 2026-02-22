@@ -56,7 +56,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .eq("org_id", orgId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/members/memberId] Failed to update member role:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
@@ -111,7 +112,8 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     .eq("org_id", orgId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/members/memberId] Failed to delete member:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

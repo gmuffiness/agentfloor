@@ -43,7 +43,8 @@ export async function POST(
     .upsert(rows, { onConflict: "conversation_id,agent_id" });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/conversations/participants] Failed to add participants:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
@@ -74,7 +75,8 @@ export async function DELETE(
     .eq("agent_id", agentId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/conversations/participants] Failed to remove participant:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

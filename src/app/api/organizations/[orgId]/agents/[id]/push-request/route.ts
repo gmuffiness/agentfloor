@@ -118,7 +118,8 @@ export async function POST(
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/agents/push-request] Failed to create push request announcement:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ id, agentId, message: "Push request sent" }, { status: 201 });

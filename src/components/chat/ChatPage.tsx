@@ -357,7 +357,7 @@ export function ChatPage({ orgId }: ChatPageProps) {
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <div className="flex w-[280px] shrink-0 flex-col border-r border-slate-700 bg-slate-850">
+      <div className="flex w-[280px] shrink-0 flex-col border-r border-slate-700 bg-slate-900">
         <div className="flex-1 overflow-y-auto p-3">
           <ConversationList
             conversations={conversations}
@@ -374,16 +374,16 @@ export function ChatPage({ orgId }: ChatPageProps) {
       {/* Main chat area */}
       <div className="flex flex-1 flex-col">
         {apiKeysConfigured === false && (
-          <div className="border-b border-yellow-800/50 bg-yellow-900/20 px-6 py-3">
+          <div className="border-b border-amber-600/40 bg-amber-950/80 px-6 py-3">
             <div className="flex items-center gap-3">
-              <svg className="h-5 w-5 shrink-0 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="h-5 w-5 shrink-0 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
               </svg>
               <div className="text-sm">
-                <span className="font-medium text-yellow-300">API keys not configured.</span>{" "}
-                <span className="text-yellow-400/80">
+                <span className="font-semibold text-amber-300">API keys not configured.</span>{" "}
+                <span className="text-amber-100/90">
                   To use the chat feature, an admin must set API keys in{" "}
-                  <a href={`/org/${orgId}/settings`} className="underline hover:text-yellow-300">
+                  <a href={`/org/${orgId}/settings`} className="font-semibold text-amber-300 underline hover:text-amber-200">
                     Settings → API Keys
                   </a>.
                 </span>

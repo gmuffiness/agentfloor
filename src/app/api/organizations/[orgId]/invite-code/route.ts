@@ -20,7 +20,8 @@ export async function POST(
     .eq("id", orgId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/invite-code] Failed to update invite code:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ inviteCode: newCode });

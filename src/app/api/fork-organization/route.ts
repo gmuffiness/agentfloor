@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (orgError) {
-    return NextResponse.json({ error: orgError.message }, { status: 500 });
+    console.error("[fork-organization] Failed to create forked organization:", orgError);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Add creator as admin member

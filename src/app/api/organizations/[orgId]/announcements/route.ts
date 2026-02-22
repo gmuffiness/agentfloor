@@ -28,7 +28,8 @@ export async function GET(
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/announcements] Failed to fetch announcements:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Get ack counts per announcement
@@ -137,7 +138,8 @@ export async function POST(
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/announcements] Failed to create announcement:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ id, message: "Announcement created" }, { status: 201 });

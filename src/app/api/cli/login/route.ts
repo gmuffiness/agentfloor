@@ -69,8 +69,9 @@ export async function POST(request: NextRequest) {
         .from("cli_login_sessions")
         .delete()
         .eq("token", loginToken);
+      console.error("[cli/login] Failed to send verification email:", otpError);
       return NextResponse.json(
-        { error: `Failed to send verification email: ${otpError.message}` },
+        { error: "Failed to send verification email" },
         { status: 500 },
       );
     }
@@ -238,7 +239,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (orgError) {
-      return NextResponse.json({ error: orgError.message }, { status: 500 });
+      console.error("[cli/login] Failed to create organization:", orgError);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 
     // Add creator as admin member

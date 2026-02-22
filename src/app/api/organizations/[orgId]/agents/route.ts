@@ -36,7 +36,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: rows, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/agents] Failed to fetch agents:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Join department name and org_members data in parallel
@@ -133,7 +134,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
 
   if (agentError) {
-    return NextResponse.json({ error: agentError.message }, { status: 500 });
+    console.error("[organizations/agents] Failed to create agent:", agentError);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Link skills

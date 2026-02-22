@@ -36,7 +36,8 @@ export async function GET(
     .eq("org_id", orgId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/github/repos] Failed to fetch GitHub installations:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   if (!installations || installations.length === 0) {

@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (deptError) {
-      return NextResponse.json({ error: deptError.message }, { status: 500 });
+      console.error("[register] Failed to create department:", deptError);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
   }
 
@@ -139,7 +140,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (agentError) {
-    return NextResponse.json({ error: agentError.message }, { status: 500 });
+    console.error("[register] Failed to create agent:", agentError);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Link skills by name

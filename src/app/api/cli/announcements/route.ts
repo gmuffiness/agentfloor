@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
 
   const { data: allAnnouncements, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[cli/announcements] Failed to fetch announcements:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Get existing acks for this agent

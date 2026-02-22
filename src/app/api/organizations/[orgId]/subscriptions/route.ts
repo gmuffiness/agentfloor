@@ -67,7 +67,8 @@ export async function GET(
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/subscriptions] Failed to fetch subscriptions:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json((data || []).map(toSnake));
@@ -133,7 +134,8 @@ export async function POST(
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("[organizations/subscriptions] Failed to update subscription:", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
     return NextResponse.json(toSnake(updated));
   }
@@ -163,7 +165,8 @@ export async function POST(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/subscriptions] Failed to create subscription:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json(toSnake(created), { status: 201 });

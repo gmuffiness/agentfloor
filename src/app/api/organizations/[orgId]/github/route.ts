@@ -28,7 +28,8 @@ export async function GET(
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/github] Failed to fetch GitHub installations:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   let installUrl: string | null = null;
@@ -118,8 +119,8 @@ export async function POST(
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to link installation";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[organizations/github] Failed to link GitHub installation:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -155,7 +156,8 @@ export async function DELETE(
     .eq("id", installationId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/github] Failed to delete GitHub installation:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

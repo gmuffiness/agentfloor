@@ -28,7 +28,8 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations] Failed to fetch organizations:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   const orgs = (data ?? []).map((o) => ({
@@ -76,7 +77,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (orgError) {
-    return NextResponse.json({ error: orgError.message }, { status: 500 });
+    console.error("[organizations] Failed to create organization:", orgError);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Add creator as admin member

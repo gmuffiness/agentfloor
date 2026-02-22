@@ -199,6 +199,20 @@ export async function POST(
   const body = await request.json();
   const { agentId, agentIds, conversationId, message } = body;
 
+  // Validate message
+  if (typeof message !== "string" || message.trim().length === 0) {
+    return new Response(JSON.stringify({ error: "message must be a non-empty string" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (message.length > 10_000) {
+    return new Response(JSON.stringify({ error: "message must be 10,000 characters or fewer" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   // Support both single agentId (backward compat) and agentIds array
   const resolvedAgentIds: string[] = agentIds ?? (agentId ? [agentId] : []);
 

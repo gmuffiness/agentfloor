@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (memberError) {
-    return NextResponse.json({ error: memberError.message }, { status: 500 });
+    console.error("[organizations/join] Failed to add member:", memberError);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({

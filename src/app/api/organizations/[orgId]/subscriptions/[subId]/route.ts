@@ -32,7 +32,8 @@ export async function PATCH(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/subscriptions/subId] Failed to update subscription:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
   if (!data) {
     return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
@@ -75,7 +76,8 @@ export async function DELETE(
     .eq("org_id", orgId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[organizations/subscriptions/subId] Failed to deactivate subscription:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

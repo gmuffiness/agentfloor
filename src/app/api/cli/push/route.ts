@@ -277,9 +277,9 @@ export async function POST(request: NextRequest) {
         .eq("id", agentId);
 
       if (updateError) {
-        console.error("Agent update failed:", updateError);
+        console.error("[cli/push] Agent update failed:", updateError);
         return NextResponse.json(
-          { error: `Failed to update agent: ${updateError.message}` },
+          { error: "Internal server error" },
           { status: 500 },
         );
       }
@@ -409,9 +409,9 @@ export async function POST(request: NextRequest) {
   });
 
   if (insertError) {
-    console.error("Agent insert failed:", insertError);
+    console.error("[cli/push] Agent insert failed:", insertError);
     return NextResponse.json(
-      { error: `Failed to create agent: ${insertError.message}` },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

@@ -33,13 +33,20 @@ export async function requireCliAuth(
 
   const { data, error } = await supabase
     .from("cli_auth_tokens")
-    .select("user_id, member_id, email")
+    .select("user_id, member_id, email, expires_at")
     .eq("token", hashedToken)
     .single();
 
   if (error || !data) {
     return NextResponse.json(
       { error: "Invalid or expired auth token" },
+      { status: 401 },
+    );
+  }
+
+  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+    return NextResponse.json(
+      { error: "Auth token has expired. Please run 'agent-factorio login' again." },
       { status: 401 },
     );
   }
@@ -69,12 +76,14 @@ export async function createCliAuthToken(
   const token = randomBytes(32).toString("hex");
   const hashedToken = hashToken(token);
   const supabase = getSupabase();
+  const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
 
   await supabase.from("cli_auth_tokens").insert({
     token: hashedToken,
     user_id: userId,
     member_id: memberId,
     email,
+    expires_at: expiresAt,
   });
 
   return token;
