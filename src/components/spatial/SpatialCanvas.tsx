@@ -14,6 +14,8 @@ import MapControls from "./MapControls";
 import Minimap from "./Minimap";
 import DialogueOverlay from "./DialogueOverlay";
 import AgentStatCard from "./AgentStatCard";
+import EventFeed from "./EventFeed";
+import HudPanel from "./HudPanel";
 import type { Agent } from "@/types";
 import { getVendorColor } from "@/lib/utils";
 
@@ -424,9 +426,39 @@ export default function SpatialCanvas() {
   const [nearbyAgentName, setNearbyAgentName] = useState<string | null>(null);
   const [dialogueAgent, setDialogueAgent] = useState<Agent | null>(null);
   const [worldDims, setWorldDims] = useState({ width: MIN_WORLD_WIDTH, height: MIN_WORLD_HEIGHT });
+  const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const dialogueOpenRef = useRef(false);
   const organization = useAppStore((s) => s.organization);
+
+  // Recent agents persisted in localStorage (max 3, most recent first)
+  const recentKey = `agent-factorio-recent-agents-${organization.id}`;
+  const [recentAgentIds, setRecentAgentIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(`agent-factorio-recent-agents-`);
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+
+  // Re-sync from localStorage when org changes
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(recentKey);
+      if (stored) setRecentAgentIds(JSON.parse(stored));
+      else setRecentAgentIds([]);
+    } catch { setRecentAgentIds([]); }
+  }, [recentKey]);
+
+  const trackRecentAgent = useCallback((agentId: string) => {
+    setRecentAgentIds((prev) => {
+      const next = [agentId, ...prev.filter((id) => id !== agentId)].slice(0, 3);
+      try { localStorage.setItem(recentKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, [recentKey]);
   const mapTheme = useAppStore((s) => s.mapTheme);
+  const getSelectedAgent = useAppStore((s) => s.getSelectedAgent);
+  const selectedAgent = getSelectedAgent();
 
   // Keyboard event handlers
   useEffect(() => {
@@ -662,6 +694,14 @@ export default function SpatialCanvas() {
             avatar.zIndex = 100;
             avatar.scale.set(1.15);
           });
+
+          // Hover → show stat card
+          avatar.on("pointerover", () => {
+            setHoveredAgentId(agent.id);
+          });
+          avatar.on("pointerout", () => {
+            setHoveredAgentId(null);
+          });
         }
       }
 
@@ -719,6 +759,7 @@ export default function SpatialCanvas() {
         } else {
           // Short click — select agent (existing behavior)
           useAppStore.getState().selectAgent(agent.id);
+          trackRecentAgent(agent.id);
         }
         dragRef.current = { active: false, avatar: null, agent: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
       });
@@ -782,6 +823,7 @@ export default function SpatialCanvas() {
         if (interacted && !dialogueOpenRef.current) {
           dialogueOpenRef.current = true;
           setDialogueAgent(interacted.agent);
+          trackRecentAgent(interacted.agent.id);
         }
 
         // Update React state for UI overlay (throttled)
@@ -899,9 +941,9 @@ export default function SpatialCanvas() {
         </div>
       </div>
 
-      {/* Nearby agent indicator — hidden when dialogue is open */}
+      {/* Nearby agent indicator — hidden when dialogue is open, offset above HUD */}
       {nearbyAgentName && !dialogueAgent && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <div className="absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none" style={{ bottom: 120 }}>
           <div className="bg-gray-900/90 border-2 border-blue-500/60 px-4 py-2 font-mono text-sm text-blue-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)] animate-pulse">
             Press <kbd className="bg-gray-700 border border-blue-400 px-1.5 py-0.5 text-xs text-blue-300 rounded-sm mx-1">E</kbd> to talk to <span className="text-white font-bold">{nearbyAgentName}</span>
           </div>
@@ -933,8 +975,20 @@ export default function SpatialCanvas() {
         getViewportBounds={getViewportBounds}
       />
 
-      {/* RPG Agent Stat Card — bottom-left, above minimap */}
-      <AgentStatCard />
+      {/* RPG Agent Stat Card — bottom-left, above HUD */}
+      <AgentStatCard hoveredAgentId={hoveredAgentId} />
+
+      {/* StarCraft-style Event Feed — top-right overlay */}
+      <EventFeed organization={organization} />
+
+      {/* StarCraft-style HUD Command Panel — fixed bottom */}
+      <HudPanel
+        organization={organization}
+        selectedAgent={selectedAgent}
+        viewportRef={viewportRef}
+        orgId={organization.id}
+        recentAgentIds={recentAgentIds}
+      />
     </div>
   );
 }
