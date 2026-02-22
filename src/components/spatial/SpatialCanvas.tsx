@@ -984,8 +984,6 @@ export default function SpatialCanvas() {
       {/* StarCraft-style HUD Command Panel — fixed bottom */}
       <HudPanel
         organization={organization}
-        selectedAgent={selectedAgent}
-        viewportRef={viewportRef}
         orgId={organization.id}
         recentAgentIds={recentAgentIds}
       />

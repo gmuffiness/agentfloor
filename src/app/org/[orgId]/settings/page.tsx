@@ -426,7 +426,7 @@ export default function SettingsPage() {
   const descText = "text-sm leading-relaxed text-slate-400";
 
   return (
-    <div className="mx-auto max-w-5xl p-6 pb-20">
+    <div className="mx-auto max-w-5xl p-6 pb-20 min-h-screen bg-slate-950">
       {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-slate-100">Settings</h1>
