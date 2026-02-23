@@ -143,7 +143,13 @@ export function ChatPage({ orgId, initialAgentId }: ChatPageProps) {
       // Prepend any brand-new conversations (not yet in local state)
       const existingIds = new Set(updated.map((c) => c.id));
       const newOnes = fetched.filter((c) => !existingIds.has(c.id));
-      return [...tempConvs, ...newOnes, ...updated];
+      // Deduplicate by id
+      const seen = new Set<string>();
+      return [...tempConvs, ...newOnes, ...updated].filter((c) => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
     });
     setConvLoading(false);
   }, [orgId]);
@@ -267,7 +273,13 @@ export function ChatPage({ orgId, initialAgentId }: ChatPageProps) {
         joinedAt: now,
       }],
     };
-    setConversations((prev) => [tempConv, ...prev]);
+    setConversations((prev) => {
+      // Prevent duplicate if already added (e.g. React Strict Mode double-invoke)
+      if (prev.some((c) => c.id.startsWith("conv-") && c.participants?.some((p) => p.agentId === agent.id))) {
+        return prev;
+      }
+      return [tempConv, ...prev];
+    });
     setSelectedConvId(tempConvId);
     setMessages([]);
     setStreamingAgent(null);
