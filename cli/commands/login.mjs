@@ -41,16 +41,11 @@ async function waitForVerification(hubUrl, loginToken) {
   throw new Error("Verification timed out. Please try again.");
 }
 
-export async function loginCommand() {
-  const existing = readGlobalConfig();
-  const defaultUrl = existing?.organizations?.[0]?.hubUrl || "";
+const DEFAULT_HUB_URL = "https://agent-factorio.vercel.app";
 
-  // 1. Hub URL
-  const hubUrl = await ask("AgentFactorio Hub URL", defaultUrl || "https://agent-factorio.vercel.app");
-  if (!hubUrl) {
-    error("Hub URL is required.");
-    process.exit(1);
-  }
+export async function loginCommand(options = {}) {
+  const existing = readGlobalConfig();
+  const hubUrl = options.hubUrl || existing?.organizations?.[0]?.hubUrl || DEFAULT_HUB_URL;
 
   // Check connectivity
   const reachable = await checkHub(hubUrl);
@@ -58,7 +53,6 @@ export async function loginCommand() {
     error(`Cannot connect to ${hubUrl}. Is the hub running?`);
     process.exit(1);
   }
-  success("Hub connected.");
 
   // 2. Email input
   const email = await ask("Your email (used as your identifier)");

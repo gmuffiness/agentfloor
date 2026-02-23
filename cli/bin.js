@@ -64,6 +64,7 @@ program
 program
   .command("login")
   .description("Connect to an AgentFactorio hub and join an organization")
+  .option("--hub-url <url>", "Hub URL (default: https://agent-factorio.vercel.app)")
   .action(loginCommand);
 
 program

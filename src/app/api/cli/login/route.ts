@@ -15,14 +15,17 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
  *   - { action: "create", orgName, email, userId, memberName? } — create new org
  */
 export async function POST(request: NextRequest) {
-  const ip = getClientIp(request);
-  const { allowed, retryAfterMs } = checkRateLimit(`cli-login:${ip}`, { maxRequests: 10, windowMs: 60_000 });
-  if (!allowed) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 60000) / 1000)) } });
-  }
-
   const body = await request.json();
   const { action } = body;
+
+  // Rate limit everything except verification polling (which fires every 2s)
+  if (action !== "check-verification") {
+    const ip = getClientIp(request);
+    const { allowed, retryAfterMs } = checkRateLimit(`cli-login:${ip}`, { maxRequests: 10, windowMs: 60_000 });
+    if (!allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 60000) / 1000)) } });
+    }
+  }
 
   const supabase = getSupabase();
 
