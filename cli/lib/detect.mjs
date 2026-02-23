@@ -143,9 +143,14 @@ export function detectClaudeMd(projectRoot) {
 export function detectSubscriptions() {
   const subs = [];
 
-  // Claude Code — always true when running inside Claude Code
-  if (process.env.CLAUDE_CODE_VERSION) {
+  // Claude Code — check CLAUDECODE env var or ~/.claude directory
+  if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDECODE) {
     subs.push({ name: "Claude Code", detectionSource: "env_var" });
+  } else {
+    const claudeDir = path.join(process.env.HOME || "", ".claude");
+    if (fs.existsSync(claudeDir)) {
+      subs.push({ name: "Claude Code", detectionSource: "cli_push" });
+    }
   }
 
   // API keys

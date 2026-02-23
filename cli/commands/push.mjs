@@ -43,13 +43,26 @@ export async function pushCommand() {
   const agentName = await ask("Agent name", defaultName);
 
   const vendorOptions = ["anthropic", "openai", "google"];
-  const { value: vendor } = await choose("Vendor", vendorOptions);
+  let vendor;
+  if (localConfig?.vendor && vendorOptions.includes(localConfig.vendor)) {
+    vendor = localConfig.vendor;
+    label("Vendor", `${vendor} (saved)`);
+  } else if (process.env.CLAUDECODE || process.env.CLAUDE_CODE_VERSION) {
+    vendor = "anthropic";
+    label("Vendor", `${vendor} (auto-detected)`);
+  } else {
+    ({ value: vendor } = await choose("Vendor", vendorOptions));
+  }
 
   const modelOptions = getModelOptions(vendor);
+  let model;
   const defaultModel = localConfig?.model;
-  const { value: model } = defaultModel && modelOptions.includes(defaultModel)
-    ? { value: defaultModel }
-    : await choose("Model", modelOptions);
+  if (defaultModel && modelOptions.includes(defaultModel)) {
+    model = defaultModel;
+    label("Model", `${model} (saved)`);
+  } else {
+    ({ value: model } = await choose("Model", modelOptions));
+  }
 
   // 4. Build request body
   const body = {
@@ -127,7 +140,7 @@ export async function pushCommand() {
     success(`Agent registered! (${agentId})`);
   }
 
-  console.log(`\nDashboard: ${org.hubUrl}`);
+  console.log(`\nDashboard: ${org.hubUrl}/org/${org.orgId}`);
 }
 
 function getModelOptions(vendor) {
