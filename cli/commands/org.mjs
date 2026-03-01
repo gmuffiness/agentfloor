@@ -89,7 +89,7 @@ export async function orgCreateCommand(name) {
     memberId,
     userId: org.userId,
     authToken,
-  });
+  }, { setAsDefault: true });
 
   success(`Created "${createdName}" (${orgId})`);
   info(`Invite code: ${inviteCode} — share with your team!`);
@@ -137,7 +137,7 @@ export async function orgJoinCommand(code) {
     memberId,
     userId: org.userId,
     authToken,
-  });
+  }, { setAsDefault: true });
 
   success(`Joined "${orgName}" (${orgId})`);
 }

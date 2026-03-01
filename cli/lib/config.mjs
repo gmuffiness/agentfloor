@@ -60,7 +60,7 @@ export function getDefaultOrg() {
  * Add or update an organization in global config
  * @param {OrgEntry} org
  */
-export function upsertOrg(org) {
+export function upsertOrg(org, { setAsDefault = false } = {}) {
   const config = readGlobalConfig() || { organizations: [] };
   const idx = config.organizations.findIndex(
     (o) => o.orgId === org.orgId && o.hubUrl === org.hubUrl
@@ -70,7 +70,7 @@ export function upsertOrg(org) {
   } else {
     config.organizations.push(org);
   }
-  if (!config.defaultOrg) {
+  if (!config.defaultOrg || setAsDefault) {
     config.defaultOrg = org.orgId;
   }
   writeGlobalConfig(config);

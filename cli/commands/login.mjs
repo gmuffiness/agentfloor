@@ -136,7 +136,7 @@ export async function loginCommand(options = {}) {
     }
 
     const { orgId, orgName: name, inviteCode, memberId, authToken } = res.data;
-    upsertOrg({ hubUrl, orgId, orgName: name, inviteCode, memberName, email, memberId, userId, authToken });
+    upsertOrg({ hubUrl, orgId, orgName: name, inviteCode, memberName, email, memberId, userId, authToken }, { setAsDefault: true });
 
     success(`Created "${name}" (${orgId})`);
     info(`Invite code: ${inviteCode} — share with your team!`);
@@ -158,7 +158,7 @@ export async function loginCommand(options = {}) {
     }
 
     const { orgId, orgName, memberId, authToken } = res.data;
-    upsertOrg({ hubUrl, orgId, orgName, inviteCode: inviteCode.toUpperCase(), memberName, email, memberId, userId, authToken });
+    upsertOrg({ hubUrl, orgId, orgName, inviteCode: inviteCode.toUpperCase(), memberName, email, memberId, userId, authToken }, { setAsDefault: true });
 
     success(`Joined "${orgName}" (${orgId})`);
   }
