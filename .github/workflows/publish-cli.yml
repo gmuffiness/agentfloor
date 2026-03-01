@@ -1,4 +1,4 @@
-name: Publish CLI to npm
+name: Publish CLI
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish:
+  publish-npm:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -20,11 +20,6 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-
-      - name: Verify versions
-        run: |
-          echo "Node: $(node --version)"
-          echo "npm: $(npm --version)"
 
       - name: Check if version changed
         id: version-check
@@ -58,5 +53,64 @@ jobs:
           if [ "${{ steps.version-check.outputs.changed }}" == "true" ]; then
             echo "### Published agent-factorio@${{ steps.version-check.outputs.local }} to npm" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "### Skipped — version ${{ steps.version-check.outputs.local }} already published" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### Skipped npm — version ${{ steps.version-check.outputs.local }} already published" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+  publish-github-packages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: '@gmuffiness'
+
+      - name: Check if version changed
+        id: version-check
+        working-directory: cli
+        run: |
+          LOCAL_VERSION=$(node -p "require('./package.json').version")
+          GPR_VERSION=$(npm view @gmuffiness/agent-factorio version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+          echo "gpr=$GPR_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL_VERSION" != "$GPR_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.version-check.outputs.changed == 'true'
+        working-directory: cli
+        run: npm install
+
+      - name: Publish to GitHub Packages
+        if: steps.version-check.outputs.changed == 'true'
+        working-directory: cli
+        run: |
+          # Temporarily scope the package name for GitHub Packages
+          node -e "
+            const pkg = require('./package.json');
+            pkg.name = '@gmuffiness/agent-factorio';
+            pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.version-check.outputs.changed }}" == "true" ]; then
+            echo "### Published @gmuffiness/agent-factorio@${{ steps.version-check.outputs.local }} to GitHub Packages" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "### Skipped GitHub Packages — version ${{ steps.version-check.outputs.local }} already published" >> "${GITHUB_STEP_SUMMARY}"
           fi
