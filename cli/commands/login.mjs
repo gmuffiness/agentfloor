@@ -1,10 +1,30 @@
 /**
- * agent-factorio login — Connect to hub + join organization (with email verification)
+ * agent-factorio login — Browser-based authentication (like Claude Code /login)
  */
 import { ask, choose } from "../lib/prompt.mjs";
 import { readGlobalConfig, upsertOrg } from "../lib/config.mjs";
 import { apiCall, checkHub } from "../lib/api.mjs";
 import { success, error, info, dim } from "../lib/log.mjs";
+
+/**
+ * Try to open a URL in the default browser
+ * @param {string} url
+ */
+async function openBrowser(url) {
+  const { exec } = await import("child_process");
+  const { platform } = await import("os");
+
+  const cmd =
+    platform() === "darwin"
+      ? `open "${url}"`
+      : platform() === "win32"
+        ? `start "" "${url}"`
+        : `xdg-open "${url}"`;
+
+  return new Promise((resolve) => {
+    exec(cmd, (err) => resolve(!err));
+  });
+}
 
 /**
  * Poll verification status until verified or expired
@@ -23,7 +43,7 @@ async function waitForVerification(hubUrl, loginToken) {
     });
 
     if (res.status === 410) {
-      throw new Error("Verification link expired. Please try again.");
+      throw new Error("Login session expired. Please try again.");
     }
 
     if (!res.ok) {
@@ -34,11 +54,10 @@ async function waitForVerification(hubUrl, loginToken) {
       return { userId: res.data.userId, email: res.data.email };
     }
 
-    // Wait before next poll
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
   }
 
-  throw new Error("Verification timed out. Please try again.");
+  throw new Error("Login timed out. Please try again.");
 }
 
 const DEFAULT_HUB_URL = "https://agent-factorio.vercel.app";
@@ -54,45 +73,46 @@ export async function loginCommand(options = {}) {
     process.exit(1);
   }
 
-  // 2. Email input
-  const email = await ask("Your email (used as your identifier)");
-  if (!email) {
-    error("Email is required.");
-    process.exit(1);
-  }
-
-  // 3. Send verification email
-  info("Sending verification email...");
-  const sendRes = await apiCall(hubUrl, "/api/cli/login", {
-    body: { action: "send-verification", email },
+  // 1. Initialize browser login session
+  const initRes = await apiCall(hubUrl, "/api/cli/login", {
+    body: { action: "init-browser-login" },
   });
 
-  if (!sendRes.ok) {
-    error(`Failed to send verification email: ${sendRes.data?.error || "Unknown error"}`);
+  if (!initRes.ok) {
+    error(`Failed to initialize login: ${initRes.data?.error || "Unknown error"}`);
     process.exit(1);
   }
 
-  const { loginToken } = sendRes.data;
-  success("Verification email sent!");
-  info("Check your inbox and click the verification link.");
-  dim("Waiting for verification...");
+  const { loginToken, loginUrl } = initRes.data;
 
-  // 4. Poll for verification
-  let userId;
+  // 2. Open browser
+  const opened = await openBrowser(loginUrl);
+  if (!opened) {
+    console.log();
+    info("Browser didn't open? Use the url below to sign in:");
+    console.log(`  ${loginUrl}`);
+  }
+
+  console.log();
+  dim("Waiting for sign-in...");
+
+  // 3. Poll for verification
+  let userId, email;
   try {
     const result = await waitForVerification(hubUrl, loginToken);
     userId = result.userId;
+    email = result.email;
   } catch (err) {
     error(err.message);
     process.exit(1);
   }
 
-  success("Email verified!");
+  success(`Logged in as ${email}`);
 
-  // 5. Name input
+  // 4. Name input
   const memberName = await ask("Your name (displayed in the org)", "CLI User");
 
-  // 6. Create or Join
+  // 5. Create or Join
   const { index: actionIdx } = await choose("Create or join an organization?", [
     "Create new",
     "Join existing (invite code)",
@@ -143,5 +163,5 @@ export async function loginCommand(options = {}) {
     success(`Joined "${orgName}" (${orgId})`);
   }
 
-  console.log("\nLogged in! Run `agent-factorio push` in any project to register an agent.");
+  console.log("\nLogin successful! Run `agent-factorio push` in any project to register an agent.");
 }

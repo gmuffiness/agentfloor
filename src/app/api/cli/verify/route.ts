@@ -54,9 +54,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Already verified" });
   }
 
+  // Store email from authenticated user
+  const userEmail = user.email || "";
+
   const { error: updateError } = await supabase
     .from("cli_login_sessions")
-    .update({ verified: true, user_id: userId })
+    .update({ verified: true, user_id: userId, email: userEmail })
     .eq("token", loginToken);
 
   if (updateError) {

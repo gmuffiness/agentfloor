@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase, getSupabaseAuth } from "@/db/supabase";
+import { getSupabase } from "@/db/supabase";
 import { createCliAuthToken } from "@/lib/cli-auth";
 import { randomUUID } from "crypto";
 import { generateInviteCode } from "@/lib/invite-code";
@@ -7,9 +7,9 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * POST /api/cli/login
- * CLI login endpoint with email verification via Supabase Auth magic link.
+ * CLI login endpoint with browser-based authentication.
  * Actions:
- *   - { action: "send-verification", email } — send magic link email, return loginToken
+ *   - { action: "init-browser-login" } — create login session, return loginToken + browser URL
  *   - { action: "check-verification", loginToken } — poll verification status
  *   - { action: "join", inviteCode, email, userId, memberName? } — join existing org
  *   - { action: "create", orgName, email, userId, memberName? } — create new org
@@ -29,22 +29,13 @@ export async function POST(request: NextRequest) {
 
   const supabase = getSupabase();
 
-  // --- Send verification email ---
-  if (action === "send-verification") {
-    const { email } = body;
-    if (!email) {
-      return NextResponse.json(
-        { error: "email is required" },
-        { status: 400 },
-      );
-    }
-
+  // --- Initialize browser-based login session ---
+  if (action === "init-browser-login") {
     const loginToken = randomUUID();
 
-    // Store pending session
     const { error: insertError } = await supabase
       .from("cli_login_sessions")
-      .insert({ token: loginToken, email });
+      .insert({ token: loginToken });
 
     if (insertError) {
       return NextResponse.json(
@@ -53,33 +44,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send magic link via Supabase Auth
     const hubUrl = request.nextUrl.origin;
-    const redirectTo = `${hubUrl}/cli/verify?loginToken=${loginToken}`;
+    const loginUrl = `${hubUrl}/cli/login?loginToken=${loginToken}`;
 
-    const authClient = getSupabaseAuth();
-    const { error: otpError } = await authClient.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: redirectTo,
-      },
-    });
-
-    if (otpError) {
-      // Clean up the session on failure
-      await supabase
-        .from("cli_login_sessions")
-        .delete()
-        .eq("token", loginToken);
-      console.error("[cli/login] Failed to send verification email:", otpError);
-      return NextResponse.json(
-        { error: "Failed to send verification email" },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json({ loginToken, message: "Verification email sent" });
+    return NextResponse.json({ loginToken, loginUrl });
   }
 
   // --- Check verification status (polling) ---
@@ -267,7 +235,7 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { error: 'Invalid action. Use "send-verification", "check-verification", "join", or "create".' },
+    { error: 'Invalid action. Use "init-browser-login", "check-verification", "join", or "create".' },
     { status: 400 },
   );
 }

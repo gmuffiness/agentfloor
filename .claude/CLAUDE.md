@@ -129,7 +129,7 @@ See [docs/api-reference.md](../docs/api-reference.md) for endpoint reference.
 - For Vercel deployment, set env vars in the Vercel dashboard (Settings → Environment Variables)
 
 ### CLI (`npx agent-factorio`)
-- `agent-factorio login` — Connect to hub + email verification (magic link) + org create/join. Saves `memberId`, `userId`, `authToken` to global config (`~/.agent-factorio/config.json`)
+- `agent-factorio login` — Opens browser for sign-in (Google OAuth or email magic link), then org create/join. Saves `memberId`, `userId`, `authToken` to global config (`~/.agent-factorio/config.json`)
 - `agent-factorio push` — Push current project's agent config to hub (auto-detects: git, skills, MCP, CLAUDE.md). Records `memberId` as `registered_by`
 - `agent-factorio org list/create/join/switch/info` — Organization management
 - `agent-factorio agent list/info/edit/pull/delete` — Agent CRUD from terminal
@@ -139,6 +139,21 @@ See [docs/api-reference.md](../docs/api-reference.md) for endpoint reference.
 - CLI source: `cli/` directory (bin.js, commands/, lib/)
 - CLI APIs: `POST /api/cli/login`, `POST /api/cli/push`, `GET /api/cli/orgs`, `GET/PATCH/DELETE /api/cli/agents`
 - **Always bump `cli/package.json` version before pushing CLI code changes** — otherwise npm publish is skipped
+
+#### CLI Release Process
+When CLI code changes are pushed to `main` with a version bump in `cli/package.json`, the CI workflow (`.github/workflows/publish-cli.yml`) automatically:
+1. **Publishes to npm** — `agent-factorio@{version}`
+2. **Publishes to GitHub Packages** — `@gmuffiness/agent-factorio@{version}`
+3. **Creates a GitHub Release** — `v{version}` tag with auto-generated notes
+
+To release a new CLI version:
+1. Make code changes in `cli/`
+2. Bump version in `cli/package.json` (e.g. `0.3.4` → `0.3.5`)
+3. Commit and push to `main` — CI handles the rest
+
+If only the workflow or non-CLI files changed, CI won't trigger automatically. Use `gh workflow run "Publish CLI" --ref main` for manual trigger.
+
+**No local npm login needed** — CI uses `secrets.NPM_TOKEN` for publishing. Just bump version, commit, and push.
 
 See [docs/cli.md](../docs/cli.md) for full CLI manual, config format, and troubleshooting.
 See [docs/publishing.md](../docs/publishing.md) for npm/Vercel deployment guide.
