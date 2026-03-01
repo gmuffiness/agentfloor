@@ -12,15 +12,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const supabase = getSupabase();
 
-  const { data: agent, error } = await supabase
-    .from("agents")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const [{ data: agent, error }, { data: orgRow }] = await Promise.all([
+    supabase.from("agents").select("*").eq("id", id).single(),
+    supabase.from("organizations").select("visibility, forked_from").eq("id", orgId).single(),
+  ]);
 
   if (error || !agent) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
+
+  const isTemplate = orgRow?.visibility === "public" && !orgRow?.forked_from;
 
   // Skills
   const { data: allSkills } = await supabase.from("skills").select("*");
@@ -102,7 +103,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   return NextResponse.json({
     ...agent,
-    status: computeEffectiveStatus(agent.status as AgentStatus, agent.last_active),
+    status: computeEffectiveStatus(agent.status as AgentStatus, agent.last_active, { isTemplate }),
     position: { x: agent.pos_x, y: agent.pos_y },
     humanId: agent.human_id,
     humanMember,

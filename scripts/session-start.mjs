@@ -6,6 +6,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { spawn } from "child_process";
 
 const CONFIG_DIR = ".agent-factorio";
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
@@ -160,6 +161,35 @@ function main() {
         .catch(() => {
           // Silently ignore announcement fetch failures
         });
+    }
+    // Spawn file watcher (lifecycle tied to this session)
+    const pidFile = path.join("/tmp", `af-watcher-${config.agentId}.pid`);
+    let watcherAlive = false;
+    try {
+      if (fs.existsSync(pidFile)) {
+        const pid = parseInt(fs.readFileSync(pidFile, "utf-8").trim(), 10);
+        try {
+          process.kill(pid, 0);
+          watcherAlive = true;
+        } catch {
+          // stale PID
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!watcherAlive) {
+      const watcherPath = path.join(
+        path.dirname(new URL(import.meta.url).pathname),
+        "watcher.mjs"
+      );
+      if (fs.existsSync(watcherPath)) {
+        spawn("node", [watcherPath], {
+          stdio: "ignore",
+          env: { ...process.env, AF_PROJECT_ROOT: process.cwd() },
+        });
+      }
     }
   } catch {
     process.stderr.write("[AgentFactorio] Config file corrupted. Run /agent-factorio:setup to reconfigure.\n");

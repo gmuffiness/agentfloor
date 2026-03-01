@@ -14,10 +14,14 @@ import type { AgentStatus } from "@/types";
  */
 export function computeEffectiveStatus(
   storedStatus: AgentStatus,
-  lastActive: string | null
+  lastActive: string | null,
+  options?: { isTemplate?: boolean }
 ): AgentStatus {
   // Error status is always preserved
   if (storedStatus === "error") return "error";
+
+  // Template org agents: skip heartbeat timeout, preserve stored status as-is
+  if (options?.isTemplate) return storedStatus;
 
   // If no last_active, keep stored status
   if (!lastActive) return storedStatus;

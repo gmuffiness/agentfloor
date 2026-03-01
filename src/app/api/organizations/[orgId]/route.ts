@@ -167,7 +167,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         description: agent.description,
         vendor: agent.vendor as Agent["vendor"],
         model: agent.model,
-        status: computeEffectiveStatus(agent.status as Agent["status"], agent.last_active),
+        status: computeEffectiveStatus(agent.status as Agent["status"], agent.last_active, {
+          isTemplate: org.visibility === "public" && !org.forked_from,
+        }),
         monthlyCost: agent.monthly_cost,
         tokensUsed: agent.tokens_used,
         position: { x: agent.pos_x, y: agent.pos_y },
