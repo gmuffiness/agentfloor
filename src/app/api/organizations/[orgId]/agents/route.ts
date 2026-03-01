@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
 import { requireOrgMember } from "@/lib/auth";
+import { computeEffectiveStatus } from "@/lib/heartbeat";
+import type { AgentStatus } from "@/types";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
@@ -14,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Fetch org visibility + departments in parallel (merged to save a roundtrip)
   const [{ data: orgCheck }, { data: orgDepts }] = await Promise.all([
-    supabase.from("organizations").select("visibility").eq("id", orgId).single(),
+    supabase.from("organizations").select("visibility, forked_from").eq("id", orgId).single(),
     supabase.from("departments").select("id").eq("org_id", orgId),
   ]);
 
@@ -53,6 +55,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const humanMember = a.human_id ? memberMap.get(a.human_id) : null;
     return {
       ...a,
+      status: computeEffectiveStatus(a.status as AgentStatus, a.last_active, {
+        isTemplate: orgCheck?.visibility === "public" && !orgCheck?.forked_from,
+      }),
       departmentName: deptMap.get(a.dept_id) ?? "",
       humanName: humanMember?.name ?? "",
       registeredByName: member?.name ?? "",

@@ -5,7 +5,7 @@ import { DataTable } from "@/components/database/DataTable";
 import { AgentForm, type AgentFormData, type EditAgentData } from "@/components/database/AgentForm";
 import { useAppStore } from "@/stores/app-store";
 import { useOrgId } from "@/hooks/useOrgId";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getActivityGrade, getGradeBgClass } from "@/lib/utils";
 import type { Vendor, AgentStatus } from "@/types";
 import { trackAgentCreate, trackAgentEdit, trackAgentDelete } from "@/lib/analytics";
 
@@ -27,6 +27,7 @@ interface AgentRow {
   lastActive: string;
   runtimeType?: string;
   gatewayUrl?: string;
+  grade: string;
   [key: string]: unknown;
 }
 
@@ -57,6 +58,18 @@ function VendorBadge({ vendor }: { vendor: string }) {
   return (
     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[vendor] ?? "bg-slate-500/20 text-slate-400"}`}>
       {labels[vendor] ?? vendor}
+    </span>
+  );
+}
+
+function ActivityGradeBadge({ lastActive }: { lastActive: string }) {
+  const grade = getActivityGrade(lastActive);
+  return (
+    <span
+      className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${getGradeBgClass(grade)}`}
+      title={`Activity Grade: ${grade}`}
+    >
+      {grade}
     </span>
   );
 }
@@ -100,7 +113,8 @@ export default function AgentsPage() {
       fetch(`/api/organizations/${orgId}/departments`),
       fetch(`/api/organizations/${orgId}/members`),
     ]);
-    setAgents(await agentsRes.json());
+    const agentsData: AgentRow[] = await agentsRes.json();
+    setAgents(agentsData.map((a) => ({ ...a, grade: getActivityGrade(a.lastActive) })));
     const deptData = await deptsRes.json();
     setDepartments(deptData.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
     if (membersRes.ok) {
@@ -215,6 +229,12 @@ export default function AgentsPage() {
         if (t >= 1_000) return `${(t / 1_000).toFixed(0)}K`;
         return String(t);
       },
+    },
+    {
+      key: "grade",
+      label: "Grade",
+      render: (row: AgentRow) => <ActivityGradeBadge lastActive={row.lastActive} />,
+      sortable: true,
     },
     {
       key: "lastActive",

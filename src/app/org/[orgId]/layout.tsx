@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useAppStore } from "@/stores/app-store";
 import { AppShell } from "@/components/ui/AppShell";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { KeyboardShortcutHelp } from "@/components/ui/KeyboardShortcutHelp";
 
 function OrgLoadingSpinner() {
   return (
@@ -23,6 +25,8 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const isLoaded = useAppStore((s) => s.isLoaded);
   const currentOrgId = useAppStore((s) => s.currentOrgId);
 
+  useKeyboardShortcuts();
+
   useEffect(() => {
     setCurrentOrgId(orgId);
     fetchOrganization(orgId);
@@ -33,6 +37,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppShell>
       {isLoaded && currentOrgId === orgId ? children : <OrgLoadingSpinner />}
+      <KeyboardShortcutHelp />
     </AppShell>
   );
 }

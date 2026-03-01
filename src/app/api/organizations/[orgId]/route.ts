@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/db/supabase";
 import { requireOrgMember, requireOrgAdmin } from "@/lib/auth";
+import { computeEffectiveStatus } from "@/lib/heartbeat";
 import type { Organization, Department, Agent, Skill, Plugin, McpTool, AgentResource, MonthlyCost, DailyUsage, OrgMember } from "@/types";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
@@ -166,7 +167,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         description: agent.description,
         vendor: agent.vendor as Agent["vendor"],
         model: agent.model,
-        status: agent.status as Agent["status"],
+        status: computeEffectiveStatus(agent.status as Agent["status"], agent.last_active, {
+          isTemplate: org.visibility === "public" && !org.forked_from,
+        }),
         monthlyCost: agent.monthly_cost,
         tokensUsed: agent.tokens_used,
         position: { x: agent.pos_x, y: agent.pos_y },

@@ -75,3 +75,39 @@ export function getServiceColor(serviceName: string): string {
 export function cn(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(" ");
 }
+
+export type ActivityGrade = "A" | "B" | "C" | "D" | "F";
+
+/** Compute an activity grade based on how recently the agent was active */
+export function getActivityGrade(lastActive: string | null): ActivityGrade {
+  if (!lastActive) return "F";
+  const diffMs = Date.now() - new Date(lastActive).getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+  if (diffHours < 1) return "A";        // Active within the last hour
+  if (diffHours < 24) return "B";       // Active today
+  if (diffHours < 24 * 7) return "C";   // Active this week
+  if (diffHours < 24 * 30) return "D";  // Active this month
+  return "F";                            // Inactive for over a month
+}
+
+export function getGradeColor(grade: ActivityGrade): string {
+  const colors: Record<ActivityGrade, string> = {
+    A: "#22C55E",  // green
+    B: "#3B82F6",  // blue
+    C: "#EAB308",  // yellow
+    D: "#F97316",  // orange
+    F: "#6B7280",  // gray
+  };
+  return colors[grade];
+}
+
+export function getGradeBgClass(grade: ActivityGrade): string {
+  const classes: Record<ActivityGrade, string> = {
+    A: "bg-green-500/20 text-green-400",
+    B: "bg-blue-500/20 text-blue-400",
+    C: "bg-yellow-500/20 text-yellow-400",
+    D: "bg-orange-500/20 text-orange-400",
+    F: "bg-slate-500/20 text-slate-400",
+  };
+  return classes[grade];
+}
