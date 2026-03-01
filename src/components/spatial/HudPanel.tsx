@@ -12,16 +12,18 @@ interface HudPanelProps {
 }
 
 /**
- * Sprite sheet: /assets/characters.png (384x672)
- * 12 columns x 21 rows of 32x32 sprites.
- * Each row: 4 characters × 3 frames each (stand, walk-left, walk-right).
- * Character pool: col 0 (front-facing) from rows 1-20.
+ * Pixel-character sprites: /assets/pixel-characters/char_0..5.png
+ * Each PNG is 112x96 (7 frames × 16px wide, 3 rows × 32px tall).
+ * Standing frame = column 1 (index 1), facing down = row 0.
+ * 6 base palettes; hash agent name to pick one.
  */
-const SPRITE_SIZE = 32;
-const CHARS_PER_ROW = 4;
-const FRAMES_PER_CHAR = 3;
-const TOTAL_ROWS = 21;
-const CHARACTER_POOL = Array.from({ length: TOTAL_ROWS - 1 }, (_, i) => (i + 1) * CHARS_PER_ROW);
+const SPRITE_WIDTH = 16;
+const SPRITE_HEIGHT = 32;
+const SHEET_WIDTH = 112; // 7 frames × 16px
+const SHEET_HEIGHT = 96; // 3 rows × 32px
+const STANDING_FRAME = 1;
+const DOWN_ROW = 0;
+const PALETTE_COUNT = 6;
 
 function spriteNameHash(name: string): number {
   let h = 0;
@@ -29,29 +31,24 @@ function spriteNameHash(name: string): number {
   return Math.abs(h);
 }
 
-/** Get CSS background-position to show a specific character's standing frame */
-function getSpritePosition(agentName: string): { x: number; y: number } {
-  const hash = spriteNameHash(agentName);
-  const charIndex = CHARACTER_POOL[hash % CHARACTER_POOL.length];
-  const charCol = charIndex % CHARS_PER_ROW;
-  const charRow = Math.floor(charIndex / CHARS_PER_ROW);
-  const pixelX = charCol * FRAMES_PER_CHAR * SPRITE_SIZE;
-  const pixelY = charRow * SPRITE_SIZE;
-  return { x: -pixelX, y: -pixelY };
-}
-
-/** Pixel-art sprite portrait from the character sheet */
-function SpritePortrait({ agentName, size = 40 }: { agentName: string; size?: number }) {
-  const pos = getSpritePosition(agentName);
-  const scale = size / SPRITE_SIZE;
+/** Pixel-art sprite portrait from a pixel-character sheet.
+ *  `width` controls the display width; height is always 2× width (16:32 ratio).
+ */
+function SpritePortrait({ agentName, width = 40 }: { agentName: string; width?: number }) {
+  const paletteIndex = spriteNameHash(agentName) % PALETTE_COUNT;
+  const displayH = width * (SPRITE_HEIGHT / SPRITE_WIDTH); // 2:1
+  const scaleX = width / SPRITE_WIDTH;
+  const scaleY = displayH / SPRITE_HEIGHT;
+  const posX = -(STANDING_FRAME * SPRITE_WIDTH) * scaleX;
+  const posY = -(DOWN_ROW * SPRITE_HEIGHT) * scaleY;
   return (
     <div
       style={{
-        width: size,
-        height: size,
-        backgroundImage: "url(/assets/characters.png)",
-        backgroundPosition: `${pos.x * scale}px ${pos.y * scale}px`,
-        backgroundSize: `${384 * scale}px ${672 * scale}px`,
+        width,
+        height: displayH,
+        backgroundImage: `url(/assets/pixel-characters/char_${paletteIndex}.png)`,
+        backgroundPosition: `${posX}px ${posY}px`,
+        backgroundSize: `${SHEET_WIDTH * scaleX}px ${SHEET_HEIGHT * scaleY}px`,
         imageRendering: "pixelated",
       }}
     />
@@ -110,17 +107,17 @@ function RecentAgentPortrait({ agent, onClick }: { agent: Agent; onClick: () => 
       className="flex flex-col items-center gap-1 cursor-pointer transition-transform hover:scale-105 shrink-0"
     >
       <div
-        className="relative"
+        className="relative flex items-center justify-center"
         style={{
           width: 48,
-          height: 48,
+          height: 64,
           border: `2px solid ${vendorColor}`,
           backgroundColor: "#111827",
           boxShadow: `0 0 8px ${vendorColor}44`,
           overflow: "hidden",
         }}
       >
-        <SpritePortrait agentName={agent.name} size={44} />
+        <SpritePortrait agentName={agent.name} width={28} />
         <span
           className="absolute bottom-0 right-0 w-[7px] h-[7px] rounded-full border border-gray-900"
           style={{ backgroundColor: statusColor }}

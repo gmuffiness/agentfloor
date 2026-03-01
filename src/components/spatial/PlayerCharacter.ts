@@ -3,31 +3,30 @@ import type { Agent } from "@/types";
 
 /**
  * Player character for Gather.town-style movement.
- * Uses the same sprite sheet as agents (/assets/characters.png).
+ * Uses pixel-character sprites: /assets/pixel-characters/char_N.png
  *
- * Sprite sheet layout (384x672, 32x32 cells):
- *   12 cols x 21 rows. Each character = 3 frames (stand, walk-left, walk-right).
- *   4 characters per row. Row 0 is special, rows 1-20 are usable characters.
- *   Group 0 (cols 0-2) = Down/Front, Group 1 (cols 3-5) = Front-variant,
- *   Group 2 (cols 6-8) = Back/Up, Group 3 (cols 9-11) = Side(Left).
+ * Each character PNG is 112x96 (7 frames × 16px, 3 rows × 32px).
+ *   Frame layout: walk1(0), standing(1), walk3(2), type1(3), type2(4), read1(5), read2(6)
+ *   Row layout:   down(0), up(1), right(2)  — left = flipped right
  */
 
-const SPRITE_SIZE = 32;
-const CHARS_PER_ROW = 4;
-const FRAMES_PER_CHAR = 3;
-const PLAYER_SPEED = 200; // pixels per second (delta-time based)
-const PLAYER_SCALE = 1.6;
+const SPRITE_WIDTH = 16;
+const SPRITE_HEIGHT = 32;
+const PLAYER_SPEED = 200; // pixels per second
+const PLAYER_SCALE = 3.0;
 const INTERACTION_RADIUS = 70;
 const WALK_FRAME_INTERVAL = 0.15; // seconds between walk frames
-// RPG walk cycle: neutral → step-left → neutral → step-right
-const WALK_CYCLE = [0, 1, 0, 2];
 
-// Direction → sprite group index in the sheet (each group = 3 walk frames)
-// Group 0 = Down/Front, Group 2 = Back/Up, Group 3 = Side(Left, flipped for Right)
-enum Direction {
+// Walk frames: walk1(0), standing(1), walk3(2)
+// RPG walk cycle: standing → walk1 → standing → walk3
+const WALK_FRAMES = [0, 1, 2]; // frame indices in sprite sheet
+const WALK_CYCLE = [1, 0, 1, 2]; // standing → left-step → standing → right-step
+
+// Direction → row in the sprite sheet
+enum DirRow {
   Down = 0,
-  Up = 2,
-  Side = 3,
+  Up = 1,
+  Right = 2,
 }
 
 export interface PlayerKeys {
@@ -43,8 +42,8 @@ export interface RoomCollider {
   y: number;
   w: number;
   h: number;
-  doorX: number; // door center X in world coords
-  doorY: number; // door bottom Y in world coords
+  doorX: number;
+  doorY: number;
   doorW: number;
 }
 
@@ -63,13 +62,12 @@ export class PlayerCharacter {
   private shadow: Graphics;
   private nameplate: Container;
   private interactionPrompt: Container;
-  private direction: Direction = Direction.Down;
+  private direction: DirRow = DirRow.Down;
   private facingRight: boolean = true;
   private frameIndex: number = 0;
   private walkTimer: number = 0;
   private isMoving: boolean = false;
   private nearestAgent: NearbyAgent | null = null;
-  // Pre-cached textures: [direction][frame] to avoid creating Texture objects every tick
   private frameCache: Map<number, Texture> = new Map();
   private _lastTextureKey: number = -1;
   private _lastScaleX: number = 0;
@@ -77,27 +75,24 @@ export class PlayerCharacter {
   constructor(
     spawnX: number,
     spawnY: number,
-    sheetTexture: Texture,
-    charRow: number = 5, // default player character row
+    charTexture: Texture, // one of the 6 char_N.png textures
+    _charRow: number = 0, // unused, kept for API compat
     displayName: string = "Guest",
   ) {
     this.x = spawnX;
     this.y = spawnY;
 
     // Pre-cache all direction+frame textures
-    for (const dir of [Direction.Down, Direction.Up, Direction.Side]) {
-      for (let frame = 0; frame < FRAMES_PER_CHAR; frame++) {
-        const charCol = dir;
-        const charIndex = charRow * CHARS_PER_ROW + charCol;
-        const row = Math.floor(charIndex / CHARS_PER_ROW);
-        const col = charIndex % CHARS_PER_ROW;
-        const pixelX = (col * FRAMES_PER_CHAR + frame) * SPRITE_SIZE;
-        const pixelY = row * SPRITE_SIZE;
-        const key = dir * 10 + frame; // unique key per direction+frame
+    // 3 directions × 3 walk frames = 9 textures
+    for (const dir of [DirRow.Down, DirRow.Up, DirRow.Right]) {
+      for (const frame of WALK_FRAMES) {
+        const x = frame * SPRITE_WIDTH;
+        const y = dir * SPRITE_HEIGHT;
+        const key = dir * 10 + frame;
         this.frameCache.set(
           key,
-          sheetTexture.source
-            ? new Texture({ source: sheetTexture.source, frame: new Rectangle(pixelX, pixelY, SPRITE_SIZE, SPRITE_SIZE) })
+          charTexture.source
+            ? new Texture({ source: charTexture.source, frame: new Rectangle(x, y, SPRITE_WIDTH, SPRITE_HEIGHT) })
             : Texture.EMPTY,
         );
       }
@@ -110,27 +105,27 @@ export class PlayerCharacter {
 
     // Shadow
     this.shadow = new Graphics();
-    this.shadow.ellipse(0, 18, 14, 5);
+    this.shadow.ellipse(0, 22, 16, 6);
     this.shadow.fill({ color: 0x000000, alpha: 0.25 });
     this.container.addChild(this.shadow);
 
     // Character sprite
-    this.sprite = new Sprite(this.getCachedFrame(Direction.Down, 0));
+    this.sprite = new Sprite(this.getCachedFrame(DirRow.Down, 1)); // standing frame
     this.sprite.anchor.set(0.5, 0.5);
     this.sprite.scale.set(PLAYER_SCALE);
     this.container.addChild(this.sprite);
 
-    // Player glow ring (distinguish from agents)
+    // Player glow ring
     const glow = new Graphics();
-    glow.circle(0, 0, 24);
+    glow.circle(0, 0, 28);
     glow.fill({ color: 0x60a5fa, alpha: 0.15 });
     this.container.addChildAt(glow, 0);
 
     // Player indicator arrow above head
     const arrow = new Graphics();
-    arrow.moveTo(-5, -32);
-    arrow.lineTo(5, -32);
-    arrow.lineTo(0, -38);
+    arrow.moveTo(-5, -52);
+    arrow.lineTo(5, -52);
+    arrow.lineTo(0, -58);
     arrow.closePath();
     arrow.fill({ color: 0x60a5fa, alpha: 0.8 });
     this.container.addChild(arrow);
@@ -145,7 +140,7 @@ export class PlayerCharacter {
     this.container.addChild(this.interactionPrompt);
   }
 
-  private getCachedFrame(direction: Direction, frame: number): Texture {
+  private getCachedFrame(direction: DirRow, frame: number): Texture {
     return this.frameCache.get(direction * 10 + frame) ?? Texture.EMPTY;
   }
 
@@ -154,9 +149,9 @@ export class PlayerCharacter {
     const shortName = name.length > 10 ? name.slice(0, 9) + "\u2026" : name;
     const w = Math.max(shortName.length * 6.5 + 14, 48);
     const bg = new Graphics();
-    bg.roundRect(-w / 2, 24, w, 14, 3);
+    bg.roundRect(-w / 2, 30, w, 14, 3);
     bg.fill({ color: 0x1e40af, alpha: 0.85 });
-    bg.roundRect(-w / 2 + 2, 24, w - 4, 2, 1);
+    bg.roundRect(-w / 2 + 2, 30, w - 4, 2, 1);
     bg.fill({ color: 0x60a5fa, alpha: 0.9 });
     c.addChild(bg);
 
@@ -170,7 +165,7 @@ export class PlayerCharacter {
       },
     });
     label.anchor.set(0.5, 0);
-    label.y = 26;
+    label.y = 32;
     c.addChild(label);
     return c;
   }
@@ -179,23 +174,23 @@ export class PlayerCharacter {
     const c = new Container();
 
     const bg = new Graphics();
-    bg.roundRect(-50, -60, 100, 22, 6);
+    bg.roundRect(-50, -72, 100, 22, 6);
     bg.fill({ color: 0x1e293b, alpha: 0.92 });
-    bg.roundRect(-50, -60, 100, 2, 6);
+    bg.roundRect(-50, -72, 100, 2, 6);
     bg.fill({ color: 0x60a5fa, alpha: 0.8 });
     // Speech bubble tail
-    bg.moveTo(-4, -38);
-    bg.lineTo(4, -38);
-    bg.lineTo(0, -34);
+    bg.moveTo(-4, -50);
+    bg.lineTo(4, -50);
+    bg.lineTo(0, -46);
     bg.closePath();
     bg.fill({ color: 0x1e293b, alpha: 0.92 });
     c.addChild(bg);
 
     // Key hint: [E]
     const keyBg = new Graphics();
-    keyBg.roundRect(-46, -56, 16, 14, 2);
+    keyBg.roundRect(-46, -68, 16, 14, 2);
     keyBg.fill({ color: 0x374151 });
-    keyBg.roundRect(-46, -56, 16, 14, 2);
+    keyBg.roundRect(-46, -68, 16, 14, 2);
     keyBg.stroke({ color: 0x60a5fa, width: 1 });
     c.addChild(keyBg);
 
@@ -205,7 +200,7 @@ export class PlayerCharacter {
     });
     keyText.anchor.set(0.5, 0.5);
     keyText.x = -38;
-    keyText.y = -49;
+    keyText.y = -61;
     c.addChild(keyText);
 
     const promptText = new Text({
@@ -214,13 +209,12 @@ export class PlayerCharacter {
     });
     promptText.anchor.set(0, 0.5);
     promptText.x = -26;
-    promptText.y = -49;
+    promptText.y = -61;
     c.addChild(promptText);
 
     return c;
   }
 
-  /** Update interaction prompt text with agent name */
   private updatePromptText(agentName: string): void {
     const promptText = this.interactionPrompt.children[3] as Text;
     if (promptText) {
@@ -229,17 +223,12 @@ export class PlayerCharacter {
     }
   }
 
-  /**
-   * Main update loop — call from ticker.
-   * Returns nearby agent info and whether an interaction was triggered.
-   */
   update(
     keys: PlayerKeys,
     dt: number,
     rooms: RoomCollider[],
     agentPositions: { agent: Agent; x: number; y: number; container: Container }[],
   ): { nearby: NearbyAgent | null; interacted: NearbyAgent | null } {
-    // --- Movement ---
     let dx = 0;
     let dy = 0;
 
@@ -248,7 +237,6 @@ export class PlayerCharacter {
     if (keys.up) dy -= 1;
     if (keys.down) dy += 1;
 
-    // Normalize diagonal movement
     if (dx !== 0 && dy !== 0) {
       const len = Math.sqrt(dx * dx + dy * dy);
       dx /= len;
@@ -258,30 +246,27 @@ export class PlayerCharacter {
     this.isMoving = dx !== 0 || dy !== 0;
 
     if (this.isMoving) {
-      // Update direction for sprite — horizontal takes priority over vertical
       if (dx < 0) {
-        this.direction = Direction.Side;
+        this.direction = DirRow.Right; // use right row, flip for left
         this.facingRight = false;
       } else if (dx > 0) {
-        this.direction = Direction.Side;
+        this.direction = DirRow.Right;
         this.facingRight = true;
       } else if (dy < 0) {
-        this.direction = Direction.Up;
+        this.direction = DirRow.Up;
       } else if (dy > 0) {
-        this.direction = Direction.Down;
+        this.direction = DirRow.Down;
       }
 
       const newX = this.x + dx * PLAYER_SPEED * dt;
       const newY = this.y + dy * PLAYER_SPEED * dt;
 
-      // Collision check — try X and Y independently for wall sliding
       const canMoveX = !this.collidesWithRooms(newX, this.y, rooms);
       const canMoveY = !this.collidesWithRooms(this.x, newY, rooms);
 
       if (canMoveX) this.x = newX;
       if (canMoveY) this.y = newY;
 
-      // Walk animation (4-step RPG cycle: neutral → step-left → neutral → step-right)
       this.walkTimer += dt;
       if (this.walkTimer >= WALK_FRAME_INTERVAL) {
         this.walkTimer = 0;
@@ -292,22 +277,21 @@ export class PlayerCharacter {
       this.walkTimer = 0;
     }
 
-    // Update sprite texture — back/up and side views use standing frame only (walk frames look off-angle)
-    const walkFrame = this.direction === Direction.Down ? WALK_CYCLE[this.frameIndex] : 0;
+    // Walk cycle uses all 3 frames for all directions
+    const walkFrame = WALK_CYCLE[this.frameIndex];
     const textureKey = this.direction * 10 + walkFrame;
     if (this._lastTextureKey !== textureKey) {
       this._lastTextureKey = textureKey;
       this.sprite.texture = this.getCachedFrame(this.direction, walkFrame);
     }
 
-    // Flip sprite for left movement — only update scale.x when it changes
-    const scaleX = (this.direction === Direction.Side && !this.facingRight ? -1 : 1) * PLAYER_SCALE;
+    // Flip sprite for left movement
+    const scaleX = (this.direction === DirRow.Right && !this.facingRight ? -1 : 1) * PLAYER_SCALE;
     if (this._lastScaleX !== scaleX) {
       this._lastScaleX = scaleX;
       this.sprite.scale.x = scaleX;
     }
 
-    // Update container position
     this.container.x = this.x;
     this.container.y = this.y;
 
@@ -325,7 +309,6 @@ export class PlayerCharacter {
       }
     }
 
-    // Show/hide interaction prompt
     if (this.nearestAgent) {
       this.interactionPrompt.visible = true;
       this.updatePromptText(this.nearestAgent.agent.name);
@@ -333,27 +316,19 @@ export class PlayerCharacter {
       this.interactionPrompt.visible = false;
     }
 
-    // --- Handle interaction ---
     let interacted: NearbyAgent | null = null;
     if (keys.interact && this.nearestAgent) {
       interacted = this.nearestAgent;
-      keys.interact = false; // consume the key press
+      keys.interact = false;
     }
 
     return { nearby: this.nearestAgent, interacted };
   }
 
-  /**
-   * Wall-edge collision detection.
-   * Instead of treating rooms as solid blocks, we only block when the player
-   * crosses a wall edge. Once inside, the player can move freely.
-   * The door opening at the bottom-center allows entry/exit.
-   */
   private collidesWithRooms(px: number, py: number, rooms: RoomCollider[]): boolean {
-    const hw = 6; // half-width of player hitbox
-    const hh = 8; // half-height
-
-    const WALL = 4; // wall thickness
+    const hw = 6;
+    const hh = 8;
+    const WALL = 4;
 
     for (const room of rooms) {
       const rL = room.x;
@@ -361,39 +336,31 @@ export class PlayerCharacter {
       const rT = room.y;
       const rB = room.y + room.h;
 
-      // Check if player hitbox overlaps the room's outer bounds
       const overlapX = px + hw > rL && px - hw < rR;
       const overlapY = py + hh > rT && py - hh < rB;
 
       if (!overlapX || !overlapY) continue;
 
-      // Player is within the room's bounding box.
-      // Check if they're inside the interior (past the walls) — if so, allow movement
       const insideInterior =
         px - hw >= rL + WALL &&
         px + hw <= rR - WALL &&
         py - hh >= rT + WALL &&
         py + hh <= rB - WALL;
 
-      if (insideInterior) continue; // freely move inside
+      if (insideInterior) continue;
 
-      // Player is in the wall zone — check if they're at the door opening
-      const doorHalfW = room.doorW / 2 + 6; // slightly wider than visual door for easy entry
+      const doorHalfW = room.doorW / 2 + 6;
       const inDoorX = px > room.doorX - doorHalfW && px < room.doorX + doorHalfW;
       const inBottomWall = py + hh > rB - WALL && py - hh < rB + 2;
 
-      if (inDoorX && inBottomWall) {
-        continue; // allow passage through the door
-      }
+      if (inDoorX && inBottomWall) continue;
 
-      // Block: player is overlapping a wall (not the door)
       return true;
     }
 
     return false;
   }
 
-  /** Get the nearest agent info (for external UI) */
   getNearestAgent(): NearbyAgent | null {
     return this.nearestAgent;
   }

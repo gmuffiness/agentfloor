@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback, useState } from "react";
-import { Application, Container, Graphics, TextureSource } from "pixi.js";
+import { Application, Container, Graphics, Text, Texture, TextureSource } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { useAppStore } from "@/stores/app-store";
 import { createDepartmentRoom } from "./DepartmentRoom";
-import { createAgentAvatar, loadSpriteSheet, getSpriteSheetTexture, resetSpriteSheet } from "./AgentAvatar";
+import { createAgentAvatar, loadSpriteSheet, getCharTextures, resetSpriteSheet } from "./AgentAvatar";
 import { PlayerCharacter, type PlayerKeys, type RoomCollider } from "./PlayerCharacter";
 import { generateTileset, createTiledGround } from "./TilesetGenerator";
 import { createEnvironmentAnimations, type AnimatedDecoration } from "./EnvironmentAnimations";
@@ -18,6 +18,91 @@ import HudPanel from "./HudPanel";
 import type { Agent } from "@/types";
 import { getVendorColor } from "@/lib/utils";
 import { getSupabaseBrowser } from "@/db/supabase-browser";
+
+// ─── Sub-agent visualization helpers ─────────────────────────────────────────
+
+interface SubAgentEntry {
+  agent: Agent;
+  container: Container;
+  /** Connecting line Graphics from parent to this sub-agent */
+  line: Graphics;
+  /** 0→1 fade-in progress (spawn animation) */
+  fadeIn: number;
+  /** true when despawning (fade-out) */
+  despawning: boolean;
+  /** 0→1 fade-out progress (despawn animation) */
+  fadeOut: number;
+}
+
+const SUBAGENT_SCALE = 0.8;
+const SUBAGENT_ALPHA = 0.7;
+const SUBAGENT_FADE_SPEED = 2.5; // alpha units per second (0→1 in 0.4s)
+const SUBAGENT_LINE_ALPHA = 0.3;
+const SUBAGENT_ORBIT_RADIUS = 48;
+
+/** Create a small sub-agent sprite container (uses same avatar but scaled down) */
+function createSubAgentSprite(agent: Agent, parentX: number, parentY: number, index: number, total: number): Container {
+  const container = createAgentAvatar(agent);
+  container.scale.set(SUBAGENT_SCALE);
+  container.alpha = 0; // start invisible for fade-in
+
+  // Place sub-agents in a semicircle below the parent
+  const spread = Math.max(total - 1, 1);
+  const angleStep = Math.PI / (spread + 1);
+  const angle = Math.PI / 2 + angleStep * (index + 1) - Math.PI;
+  container.x = parentX + Math.cos(angle) * SUBAGENT_ORBIT_RADIUS;
+  container.y = parentY + Math.sin(angle) * SUBAGENT_ORBIT_RADIUS + SUBAGENT_ORBIT_RADIUS;
+
+  return container;
+}
+
+/** Draw/update the connecting line from parent to sub-agent */
+function updateSubAgentLine(
+  line: Graphics,
+  parentX: number,
+  parentY: number,
+  subX: number,
+  subY: number,
+  vendorColor: number,
+  alpha: number,
+): void {
+  line.clear();
+  line.moveTo(parentX, parentY);
+  line.lineTo(subX, subY);
+  line.stroke({ color: vendorColor, width: 1.5, alpha: SUBAGENT_LINE_ALPHA * alpha });
+}
+
+/** Draw or redraw a sub-agent count badge on a parent avatar container */
+function drawSubAgentBadge(badgeGraphics: Graphics, count: number): void {
+  badgeGraphics.clear();
+  if (count <= 0) return;
+
+  // Draw circle badge at top-left of avatar
+  const bx = -18;
+  const by = -20;
+  const r = 8;
+  badgeGraphics.circle(bx, by, r);
+  badgeGraphics.fill({ color: 0x6366f1, alpha: 1 });
+  badgeGraphics.circle(bx, by, r);
+  badgeGraphics.stroke({ color: 0xffffff, width: 1.5 });
+}
+
+/** Create a Text label for sub-agent badge count (positioned on the badge) */
+function createSubAgentBadgeText(count: number): Text {
+  const label = new Text({
+    text: `+${count}`,
+    style: {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: 5,
+      fontWeight: "700",
+      fill: "#FFFFFF",
+    },
+  });
+  label.anchor.set(0.5, 0.5);
+  label.x = -18;
+  label.y = -20;
+  return label;
+}
 
 // Shared viewport ref for programmatic access
 let sharedViewport: Viewport | null = null;
@@ -671,7 +756,8 @@ export default function SpatialCanvas() {
             agent.position.y = dy + PAD + 20 + Math.floor(ai / cols) * AGENT_GAP + AGENT_GAP / 2;
           }
 
-          const avatar = createAgentAvatar(agent);
+          const siblingIds = dept.agents.map((a) => a.id);
+          const avatar = createAgentAvatar(agent, siblingIds);
           avatar.zIndex = 10;
           viewport.addChild(avatar);
           avatarContainers.push(avatar as Container & { _baseY: number; _agentStatus: string });
@@ -712,6 +798,79 @@ export default function SpatialCanvas() {
           });
           avatar.on("pointerout", () => {
             setHoveredAgentId(null);
+          });
+        }
+      }
+
+      // === Sub-agent visualization ===
+      // Build mock sub-agent data: attach sub-agents to the first two active agents found
+      const allAgents = organization.departments.flatMap((d) => d.agents);
+      const parentCandidates = allAgents.filter((a) => a.status === "active" && !a.is_subagent).slice(0, 2);
+
+      // Mock sub-agents seeded from parent agent data
+      const mockSubAgentsByParent = new Map<string, Agent[]>();
+      for (let pi = 0; pi < parentCandidates.length; pi++) {
+        const parent = parentCandidates[pi];
+        const count = pi === 0 ? 2 : 1; // first parent gets 2, second gets 1
+        const subs: Agent[] = Array.from({ length: count }, (_, si) => ({
+          ...parent,
+          id: `${parent.id}__sub_${si}`,
+          name: `sub-${si + 1}`,
+          status: "active" as const,
+          is_subagent: true,
+          parent_agent_id: parent.id,
+          sub_agents: [],
+          position: { x: parent.position.x, y: parent.position.y },
+        }));
+        mockSubAgentsByParent.set(parent.id, subs);
+      }
+
+      // Track sub-agent entries for animation
+      const subAgentEntries: SubAgentEntry[] = [];
+
+      // Badge graphics map: parentAvatarContainer → { bg: Graphics; label: Text }
+      const badgeMap = new Map<Container, { bg: Graphics; label: Text }>();
+
+      for (const posEntry of agentPositionMap) {
+        const agent = posEntry.agent;
+        const subs = mockSubAgentsByParent.get(agent.id);
+        if (!subs || subs.length === 0) continue;
+
+        const parentContainer = posEntry.container;
+        const parentX = posEntry.x;
+        const parentY = posEntry.y;
+        const vendorColor = hexToNum(getVendorColor(agent.vendor));
+
+        // Add badge to parent avatar
+        const badgeBg = new Graphics();
+        drawSubAgentBadge(badgeBg, subs.length);
+        parentContainer.addChild(badgeBg);
+
+        const badgeLabel = createSubAgentBadgeText(subs.length);
+        parentContainer.addChild(badgeLabel);
+        badgeMap.set(parentContainer, { bg: badgeBg, label: badgeLabel });
+
+        // Create sub-agent sprites and connecting lines
+        for (let si = 0; si < subs.length; si++) {
+          const sub = subs[si];
+          const subContainer = createSubAgentSprite(sub, parentX, parentY, si, subs.length);
+          subContainer.zIndex = 9; // just below regular agents
+          viewport.addChild(subContainer);
+
+          const line = new Graphics();
+          line.zIndex = 8; // below sub-agents
+          viewport.addChild(line);
+
+          // Draw initial line (invisible while fading in)
+          updateSubAgentLine(line, parentX, parentY, subContainer.x, subContainer.y, vendorColor, 0);
+
+          subAgentEntries.push({
+            agent: sub,
+            container: subContainer,
+            line,
+            fadeIn: 0,
+            despawning: false,
+            fadeOut: 0,
           });
         }
       }
@@ -797,9 +956,10 @@ export default function SpatialCanvas() {
       });
 
       // === Create Player Character ===
-      const sheetTexture = getSpriteSheetTexture()!;
+      const playerCharTextures = getCharTextures();
+      const playerTexture = playerCharTextures[0] ?? Texture.EMPTY; // char_0 for the player
       const spawn = findSpawnPoint(roomColliders);
-      const player = new PlayerCharacter(spawn.x, spawn.y, sheetTexture, 5, playerName);
+      const player = new PlayerCharacter(spawn.x, spawn.y, playerTexture, 0, playerName);
       playerRef.current = player;
       viewport.addChild(player.container);
 
@@ -853,6 +1013,54 @@ export default function SpatialCanvas() {
           }
         }
 
+        // Update sub-agent fade animations and connecting lines
+        for (const entry of subAgentEntries) {
+          const { container, line, agent: subAgent } = entry;
+
+          // Find parent position from agentPositionMap
+          const parentId = subAgent.parent_agent_id;
+          const parentEntry = parentId ? agentPositionMap.find((e) => e.agent.id === parentId) : null;
+          const parentX = parentEntry ? parentEntry.container.x : container.x;
+          const parentY = parentEntry ? parentEntry.container.y : container.y;
+
+          if (!entry.despawning) {
+            // Fade in
+            entry.fadeIn = Math.min(1, entry.fadeIn + dt * SUBAGENT_FADE_SPEED);
+            const alpha = entry.fadeIn * SUBAGENT_ALPHA;
+            container.alpha = alpha;
+            // Gentle bob animation (offset from parent bobbing)
+            const bobOffset = Math.sin(elapsed * 2.5 + container.x * 0.1) * 2;
+            container.y = (parentEntry ? parentEntry.container.y : container.y) + SUBAGENT_ORBIT_RADIUS + bobOffset;
+            updateSubAgentLine(
+              line,
+              parentX,
+              parentEntry ? parentEntry.container.y : parentY,
+              container.x,
+              container.y,
+              hexToNum(getVendorColor(subAgent.vendor)),
+              entry.fadeIn,
+            );
+          } else {
+            // Fade out
+            entry.fadeOut = Math.min(1, entry.fadeOut + dt * SUBAGENT_FADE_SPEED);
+            const alpha = SUBAGENT_ALPHA * (1 - entry.fadeOut);
+            container.alpha = alpha;
+            updateSubAgentLine(
+              line,
+              parentX,
+              parentEntry ? parentEntry.container.y : parentY,
+              container.x,
+              container.y,
+              hexToNum(getVendorColor(subAgent.vendor)),
+              1 - entry.fadeOut,
+            );
+            if (entry.fadeOut >= 1) {
+              container.visible = false;
+              line.visible = false;
+            }
+          }
+        }
+
         // Update animated environment objects
         for (const anim of animatedObjects) {
           anim.update(elapsed);
@@ -869,6 +1077,11 @@ export default function SpatialCanvas() {
 
       (app as Application & { _cleanup?: () => void })._cleanup = () => {
         window.removeEventListener("resize", onResize);
+        // Clean up animated bubble intervals for active agent avatars
+        for (const avatar of avatarContainers) {
+          const av = avatar as Container & { _cleanup?: { destroy: () => void } };
+          if (av._cleanup) av._cleanup.destroy();
+        }
       };
     })();
 

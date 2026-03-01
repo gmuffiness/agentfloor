@@ -33,12 +33,12 @@ function isGitHubUrl(url: string): boolean {
   return /github/.test(url);
 }
 
-/** Sprite sheet constants — must match AgentAvatar.ts */
-const SPRITE_SIZE = 32;
-const CHARS_PER_ROW = 4;
-const FRAMES_PER_CHAR = 3;
-const TOTAL_ROWS = 21;
-const CHARACTER_POOL = Array.from({ length: TOTAL_ROWS - 1 }, (_, i) => (i + 1) * CHARS_PER_ROW);
+/** Pixel-character constants — must match AgentAvatar.ts */
+const SPRITE_WIDTH = 16;
+const SPRITE_HEIGHT = 32;
+const STANDING_FRAME = 1;
+const DOWN_ROW = 0;
+const PALETTE_COUNT = 6;
 
 function nameHash(name: string): number {
   let h = 0;
@@ -46,7 +46,7 @@ function nameHash(name: string): number {
   return Math.abs(h);
 }
 
-/** Renders the same sprite-sheet character as the spatial map canvas */
+/** Renders the same pixel-character as the spatial map canvas */
 function AgentSpriteAvatar({ name, size = 40 }: { name: string; size?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -56,29 +56,27 @@ function AgentSpriteAvatar({ name, size = 40 }: { name: string; size?: number })
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const paletteIndex = nameHash(name) % PALETTE_COUNT;
     const img = new Image();
-    img.src = "/assets/characters.png";
+    img.src = `/assets/pixel-characters/char_${paletteIndex}.png`;
     img.onload = () => {
-      const hash = nameHash(name);
-      const charIndex = CHARACTER_POOL[hash % CHARACTER_POOL.length];
-      const charCol = charIndex % CHARS_PER_ROW;
-      const charRow = Math.floor(charIndex / CHARS_PER_ROW);
-      const srcX = charCol * FRAMES_PER_CHAR * SPRITE_SIZE; // frame 0
-      const srcY = charRow * SPRITE_SIZE;
+      const srcX = STANDING_FRAME * SPRITE_WIDTH;
+      const srcY = DOWN_ROW * SPRITE_HEIGHT;
 
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, srcX, srcY, SPRITE_SIZE, SPRITE_SIZE, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, srcX, srcY, SPRITE_WIDTH, SPRITE_HEIGHT, 0, 0, canvas.width, canvas.height);
     };
   }, [name]);
 
+  const displayH = size * (SPRITE_HEIGHT / SPRITE_WIDTH);
   return (
     <canvas
       ref={canvasRef}
       width={size}
-      height={size}
+      height={displayH}
       className="rounded-xl"
-      style={{ width: size, height: size, imageRendering: "pixelated" }}
+      style={{ width: size, height: displayH, imageRendering: "pixelated" }}
     />
   );
 }

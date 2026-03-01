@@ -79,6 +79,12 @@ export interface Agent {
   context?: AgentContext[];
   runtimeType: RuntimeType;
   gatewayUrl: string;
+  /** ID of the parent agent if this is a sub-agent */
+  parent_agent_id?: string | null;
+  /** Sub-agents spawned by this agent */
+  sub_agents?: Agent[];
+  /** Whether this agent is a sub-agent of another agent */
+  is_subagent?: boolean;
 }
 
 export interface Department {
